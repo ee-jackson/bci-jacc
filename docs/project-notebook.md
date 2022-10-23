@@ -1,15 +1,21 @@
 # project-notebook
 
+## 2022-10-23
+### MG PC in field
+* walked Shannon, Balboa
+* visited trees 059, 081, 085, 080, 082, 084
+
 ## 2022-10-22
 ### EJ PC in field
 * walked Schneirla, WMW, Balboa, AMNH, Wheeler
+* visited trees 052, 051, 050, 053, 083, 054 
 
 ## 2022-10-21
 ### EJ MG in field
 * walked Fairchild, Fausto, WMW, Donato
 * visited trees 072, 071, 070, 069, 010, 058
 * forgot to take the gps so will need to average waypoints for these individuals when visiting the exclusion experiment sites
-* we couldn't find flagging tape for 058 - we found an individual in the vicinity of where 058 should be and sampled pods from that individual
+* 058 was missing flagging tape
 
 ## 2022-10-13
 ### EJ MG in field
