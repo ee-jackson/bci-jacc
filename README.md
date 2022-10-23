@@ -1,6 +1,6 @@
 # bci-jacc
 
-This repository contains the [research compendium](https://research-compendium.science) for the project: Large-scale density-dependent pre-dispersal seed predation and fruit set in _Jacaranda Copaia_. The compendium is a collection of all digital parts of the research project to date.
+This repository contains the [research compendium](https://research-compendium.science) for the project: Large-scale density-dependent pre-dispersal seed predation and fruit set in _Jacaranda copaia_. The compendium is a collection of all digital parts of the research project to date.
 
 ## Contents:
 
