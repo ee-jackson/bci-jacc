@@ -1,5 +1,23 @@
 # project-notebook
 
+## 2022-10-27
+### EJ MG PC in field
+* visited trees 063, 064, 065, 066, 067, 062, 061, 060
+
+## 2022-10-26
+### MG PC in field
+* visited trees 037, 036, 038, 035, 034
+* defined different pod morphotypes - from this point onwards we will classify pods into a morphotype and record this in the data sheet. At some point we will need to go back and classify the pods we have measured previously
+* field collected data will continue to be recorded as simply open, closed or predated with predated pods being the `small_knobbly` and `single_locule` pod types
+
+## 2022-10-25
+### EJ PC in field
+* visited trees 049, 048, 047, 086, 019, 011
+
+## 2022-10-24
+### MG EJ in field
+* visited trees 073, 020, 003, 002, 032
+
 ## 2022-10-23
 ### MG PC in field
 * walked Shannon, Balboa
