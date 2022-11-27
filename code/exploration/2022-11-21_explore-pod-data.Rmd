@@ -1,0 +1,218 @@
+---
+title: "Explore pod data"
+author: "Eleanor Jackson"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+always_allow_html: true
+output: 
+  github_document:
+    keep_html: true
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.path = "figures/2022-11-21_explore-pod-data/")
+library("emo")
+```
+
+```{r packages}
+library("tidyverse"); theme_set(theme_bw())
+library("here")
+```
+
+
+```{r read-data}
+plotKML::readGPX(here::here("data", "raw", "Final_JACC_sites.gpx")) %>%
+  map_df( ~ .) %>%
+  rename(id = name) %>%
+  arrange(id) %>%
+  select(id, lon, lat) %>%
+  filter(!grepl("NS", id)) %>%
+  mutate(id = gsub("EJ", "", id) ) %>%
+  mutate(id = gsub("^(JACC)", "\\1_\\2", id)) -> focal_jacc
+
+plotKML::readGPX(here::here("data", "maps",
+                            "jacc-map-garzonlopez2012", "jac1co_map.gpx")) %>%
+  map_df( ~ .) %>%
+  select(lon, lat) %>%
+  mutate(id = paste0("CGL", 1:n())) -> carol_jacc
+
+rbind(carol_jacc, focal_jacc) -> all_jacc
+
+read.csv(here::here("data", "raw", "jacaranda_pods.csv")) -> pod_data
+
+```
+
+```{r}
+pod_data %>%
+  count(tree, pod_predated) %>%
+  spread(pod_predated, n) %>%
+  rename(n_predated = `TRUE`) %>%
+  mutate(`FALSE` = replace_na(`FALSE`, 0),
+         n_predated = replace_na(n_predated, 0)) %>%
+  summarise(
+    tree = tree,
+    n_predated = n_predated,
+    n_capsules = n_predated + `FALSE`,
+    proportion_predated = n_predated / (n_predated + `FALSE`)
+  ) -> porportion_pods
+  
+```
+
+```{r}
+
+calculate_dist <- function (data) {
+
+	data %>%
+    select(lat, lon) -> plot_matrix
+
+	rdist::pdist(plot_matrix[,c("lat", "lon")], 
+	             metric = "euclidean") -> dists
+	
+	as.data.frame(dists) -> dists_df
+
+	unlist(data$id) -> colnames(dists_df) 
+
+	cbind(data, dists_df)
+	
+}
+
+distance_df <- calculate_dist(all_jacc)
+
+```
+
+```{r}
+porportion_pods %>% 
+  rename(id = tree) %>%
+  pull(id) -> tree_id_list
+
+all_jacc %>% 
+  distinct(id) %>%
+  pull(id) -> tree_id_list
+
+calculate_connectivity <- function (data, tree_id) {
+  data %>%
+    group_by(id) %>%
+    mutate(x = exp(- eval(parse(text = tree_id)) ) ) %>%
+    ungroup() %>%
+    summarise(id = paste(tree_id),
+              connectivity = sum(x), .groups = "drop")
+}
+
+connectivity_dfs <- lapply(tree_id_list,
+                           calculate_connectivity, data = distance_df)
+
+connectivity_dfs %>%
+  lapply(drop_na, connectivity) %>%
+  dplyr::bind_rows() -> all_connectivity_dfs
+
+```
+
+## proportion of predated fruits ~ connectivity
+
+```{r}
+porportion_pods %>%
+  left_join(all_connectivity_dfs, by = c("tree" = "id")) -> clean_data
+
+pod_data %>% 
+  select(tree, dbh_mm) %>%
+  right_join(clean_data) -> clean_data
+
+clean_data %>%
+  ggplot(aes(x = connectivity, y = proportion_predated)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+```
+
+More connected individuals get more pre-dispersal predation.
+
+```{r}
+m1 <- glm(
+  formula = cbind(n_predated, n_capsules - n_predated) ~ connectivity,
+  data = clean_data,
+  family = binomial(link = 'logit')
+)
+
+summary(m1)
+
+library("lme4")
+
+m2 <- glmer(
+  formula = cbind(n_predated, n_capsules - n_predated) ~ connectivity + (1| dbh_mm),
+  data = clean_data,
+  family = binomial(link = 'logit')
+)
+
+summary(m2)
+```
+
+## proportion of predated fruits ~ fruit set
+
+```{r}
+clean_data %>%
+  ggplot(aes(x = connectivity, y = n_capsules)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+m1 <- glm(
+  formula = cbind(n_predated, n_capsules - n_predated) ~ n_capsules,
+  data = clean_data,
+  family = binomial(link = 'logit')
+)
+
+summary(m1)
+```
+
+More connected individuals produce less fruit.
+
+## immature aborted fruits
+
+```{r}
+pod_data %>% 
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>% 
+  filter(pod_size_mm < 200) %>%
+  ggplot(aes(x = pod_size_mm)) +
+  geom_histogram(bins = 50)
+  
+```
+
+```{r}
+pod_data %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>% 
+  filter(pod_size_mm < 200) %>%
+  ggplot(aes(x = pod_size_mm, color = pod_open_closed, fill = pod_open_closed)) +
+  geom_histogram(position = "identity", alpha = 0.5, bins = 50)+
+  scale_color_manual(values = c("#E69F00", "#999999"))+
+  scale_fill_manual(values = c("#E69F00",  "#999999"))
+
+```
+
+## proportion of aborted fruits ~ connectivity
+
+```{r}
+pod_data %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
+  filter(pod_size_mm < 200) %>% 
+  mutate(pod_aborted = case_when(pod_size_mm < 40 &
+                               morph == "symmetrical_locules" ~ TRUE,
+                             is.na(pod_size_mm) ~ NA,
+                             TRUE ~ FALSE)) %>% 
+  count(tree, pod_aborted) %>%
+  spread(pod_aborted, n) %>% 
+  rename(n_aborted = `TRUE`) %>%
+  mutate(`FALSE` = replace_na(`FALSE`, 0),
+         n_predated = replace_na(n_aborted, 0)) %>%
+  summarise(
+    tree = tree,
+    n_aborted = n_aborted,
+    n_capsules = n_aborted + `FALSE`,
+    proportion_aborted = n_aborted / (n_aborted + `FALSE`)
+  ) -> porportion_pods_aborted
+
+porportion_pods_aborted %>%
+  left_join(all_connectivity_dfs, by = c("tree" = "id")) -> clean_data_aborted
+
+clean_data_aborted %>%
+  ggplot(aes(x = connectivity, y = proportion_aborted)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+```
