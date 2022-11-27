@@ -1,0 +1,565 @@
+---
+title: "Create preliminary figures for BES poster"
+author: "Eleanor Jackson"
+date: '`r format(Sys.time(), "%d %B, %Y")`'
+always_allow_html: true
+output: 
+  github_document:
+    keep_html: true
+---
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.path = "figures/2022-11-22_create-poster-figures/")
+```
+
+```{r packages}
+library("tidyverse"); theme_set(theme_bw())
+library("here")
+library("sf")
+library("ggmap")
+library("patchwork")
+library("ggtext")
+```
+
+## Map of conspecific density across BCI
+
+```{r read-gpx}
+plotKML::readGPX(here::here("data", "maps",
+                            "jacc-map-garzonlopez2012", "jac1co_map.gpx")) %>%
+  map_df( ~ .) %>%
+  select(lon, lat) %>%
+  mutate(id = paste0("CGL", 1:n())) -> carol_jacc
+
+read_sf(here::here("data", "maps", "BCI_Plot_50ha", 
+                                "BCI_Plot_50ha.shp")) %>%
+  st_transform(plot_50ha, crs = st_crs(4326)) -> plot_50ha
+
+```
+
+```{r jacc-map, message=FALSE}
+bbox <- make_bbox(c(min(carol_jacc$lon) - 0.001, max(carol_jacc$lon) + 0.005), 
+                  c(min(carol_jacc$lat) - 0.005, max(carol_jacc$lat) + 0.001))
+
+bci_basemap <- ggmap::get_map(bbox, source = "stamen", 
+                       force = TRUE, maptype = "toner-lite")
+
+```
+
+```{r density-map}
+bci_basemap %>% 
+  ggmap() +
+  stat_density2d_filled(data = carol_jacc,
+                 aes(lon, lat, fill = ..level..), 
+                 alpha = 0.7, show.legend = FALSE, 
+                 contour_var = "count", bins = 20) +
+  geom_sf(data = plot_50ha, inherit.aes = FALSE, fill = NA, colour = "red") +
+  theme_void()
+
+```
+
+### Map of conspecific density in the 50ha plot
+
+```{r}
+readRDS("/Users/eleanorjackson/OneDrive - University of Reading/spatial-premature-fruit-drop/data/clean/tree_data.rds") %>%
+  filter(sp4 == "jacc" & year == 2017) %>%
+  rename(lon = x, lat = y) -> ha50_trees
+
+ggplot() +
+  stat_density2d_filled(data = ha50_trees,
+                 aes(lon, lat, fill = ..level..), alpha = 0.7, 
+                 geom = "polygon", show.legend = FALSE) +
+  geom_point(data = ha50_trees, aes(lon, lat))+
+  ylim(0, 500) +
+  xlim(0, 1000) +
+  theme_void()
+
+```
+
+## Connectivity histograms
+
+### whole BCI connectivity histogram
+
+```{r read-gpx}
+plotKML::readGPX(here::here("data", "raw", "Final_JACC_sites.gpx")) %>%
+  map_df( ~ .) %>%
+  rename(id = name) %>%
+  arrange(id) %>%
+  select(id, lon, lat) %>%
+  filter(!grepl("NS", id)) %>% 
+  add_row(id = "EJJACC155", lon = -79.837979, lat = 9.171755) %>%
+  add_row(id = "EJJACC156", lon = -79.828260, lat = 9.160488) %>%
+  add_row(id = "EJJACC157", lon = -79.827505, lat = 9.161556) %>%
+  add_row(id = "EJJACC119", lon = -79.851366, lat = 9.152496) -> focal_jacc
+
+```
+
+Remove any trees in Carol's data that could be duplicates of our focal trees
+
+```{r}
+geosphere::distm(cbind(pull(focal_jacc, lon), pull(focal_jacc, lat)), 
+                 cbind(pull(carol_jacc, lon), pull(carol_jacc, lat)), 
+                 fun = distGeo) -> dist_matrix
+
+rownames(dist_matrix) <- focal_jacc$id
+colnames(dist_matrix) <- carol_jacc$id
+
+as.data.frame.table(dist_matrix, responseName = "dist") %>% 
+  filter(dist <= 30) %>%
+  group_by(Var1) %>%
+  slice(which.min(dist)) %>% 
+  ungroup() %>%
+  pull(Var2) %>%
+  unique() -> duplicate_trees
+
+rbind(carol_jacc, focal_jacc) %>% 
+  filter(!id %in% duplicate_trees) -> all_jacc
+
+```
+
+Calculate distances between all trees
+
+```{r}
+
+calculate_dist <- function (data) {
+
+	data %>%
+    select(lat, lon) -> plot_matrix
+
+	rdist::pdist(plot_matrix[,c("lat", "lon")], 
+	             metric = "euclidean") -> dists
+	
+	as.data.frame(dists) -> dists_df
+
+	unlist(data$id) -> colnames(dists_df) 
+
+	cbind(data, dists_df)
+	
+}
+
+distance_df <- calculate_dist(all_jacc)
+
+```
+
+Calculate connectivity of all trees
+
+```{r}
+all_jacc %>% 
+  distinct(id) %>%
+  pull(id) -> tree_id_list
+
+calculate_connectivity <- function (data, tree_id) {
+  data %>%
+    group_by(id) %>%
+    mutate(x = exp(- eval(parse(text = tree_id)) ) ) %>%
+    ungroup() %>%
+    summarise(id = paste(tree_id),
+              connectivity = sum(x), .groups = "drop")
+}
+
+connectivity_dfs <- lapply(tree_id_list,
+                           calculate_connectivity, data = distance_df)
+
+connectivity_dfs %>%
+  lapply(drop_na, connectivity) %>%
+  dplyr::bind_rows() -> all_connectivity_dfs
+
+```
+
+Plot histogram
+
+```{r histogram}
+all_connectivity_dfs %>%
+  mutate(focal = grepl("EJJACC", id)) %>%
+  filter(focal == TRUE) %>%
+  select(id, connectivity) %>%
+  mutate(study = "whole island") -> bci_focal_connect
+
+bci_focal_connect %>%
+  ggplot() +
+  geom_histogram(aes(x = connectivity))
+
+```
+
+### 50 ha plot connectivity histogram
+
+```{r}
+# filter for trees in carol's maps that are within the 50ha
+read_sf(here::here("data", "maps",
+                            "jacc-map-garzonlopez2012", "JAC1COpointSept.shp")) %>%
+  st_transform(crs = st_crs(4326)) %>%
+  sf::st_intersection(plot_50ha) %>%
+  ggplot(aes(x = X, y = Y))+
+  stat_density2d_filled(aes(fill = ..level..), alpha = 0.7, 
+                 geom = "polygon", show.legend = FALSE) +
+  geom_point() +
+  theme_void()
+
+```
+
+Carol's data looks similar to the 50ha plot data above - a good sign.
+
+```{r}
+read_sf(here::here("data", "maps",
+                            "jacc-map-garzonlopez2012", "JAC1COpointSept.shp")) %>%
+  mutate(id = paste0("CGL", 1:n())) %>%
+  st_transform(crs = st_crs(4326)) %>%
+  sf::st_intersection(plot_50ha) %>%
+  left_join(all_connectivity_dfs, by = "id") -> plot_50ha_connect
+
+ggplot(plot_50ha_connect) +
+  geom_histogram(aes(x = connectivity))
+
+```
+
+### Comparison histogram
+
+```{r}
+plot_50ha_connect %>%
+  st_drop_geometry() %>%
+  select(id, connectivity) %>%
+  mutate(study = "50ha plot") %>%
+  rbind(bci_focal_connect) %>%
+  ggplot(aes(x = connectivity, fill = study)) +
+  geom_histogram(position = "identity",
+                 alpha = 0.8,
+                 bins = 50) +
+  scale_color_manual(values = c("#999999", "#440154FF")) +
+  scale_fill_manual(values = c("#999999",  "#440154FF")) +
+  theme_classic(base_size = 10) +
+  scale_x_continuous(expand = c(0, 0)) +
+  xlab("conspecific density") +
+  ylab("") +
+  labs(subtitle = "n trees") + 
+  scale_y_continuous(breaks = seq(0, 60, 10)) +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.05, vjust = -5),
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e")
+  ) -> p
+
+
+p +
+  annotate(
+    geom = "curve",
+    x = 1051, y = 40,
+    xend = 1054, yend = 20,
+    colour = "#999999",
+    curvature = .3,
+    arrow = arrow(length = unit(2, "mm"))
+  ) +
+  annotate(
+    geom = "text",
+    x = 1052, y = 47,
+    colour = "#999999",
+    label = "trees sampled in the\n 50ha plot (0.5km2)",
+    hjust = "right",
+    size = 4
+  ) +
+  
+  annotate(
+    geom = "curve",
+    x = 1048, y = 30,
+    xend = 1051, yend = 5,
+    colour = "#440154FF",
+    curvature = -.2,
+    arrow = arrow(length = unit(2, "mm"))
+  ) +
+  annotate(
+    geom = "text",
+    x = 1047.7, y = 30,
+    colour = "#440154FF",
+    label = "trees sampled in our study\n across the 15.6km2 island",
+    hjust = "right",
+    size = 4
+  ) +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
+  coord_cartesian(ylim = c(0, 65), clip = 'off') -> p2
+
+ggsave(here::here("01_histogram_new2.png"), plot = p2,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+  
+```
+
+## proportion pods predated ~ connectivity
+
+```{r}
+read.csv(here::here("data", "raw", "jacaranda_pods.csv")) -> pod_data
+
+pod_data %>%
+  count(tree, pod_predated) %>%
+  spread(pod_predated, n) %>%
+  rename(n_predated = `TRUE`) %>%
+  mutate(`FALSE` = replace_na(`FALSE`, 0),
+         n_predated = replace_na(n_predated, 0)) %>%
+  summarise(
+    tree = tree,
+    n_predated = n_predated,
+    n_capsules = n_predated + `FALSE`,
+    proportion_predated = n_predated / (n_predated + `FALSE`)
+  ) -> porportion_pods
+
+bci_focal_connect %>%
+  mutate(id = gsub("EJ", "", id) ) %>%
+  mutate(id = gsub("^(JACC)", "\\1_\\2", id)) %>% 
+  right_join(porportion_pods, by = c("id" = "tree")) -> pods_connect
+
+pod_data %>% 
+  select(tree, dbh_mm, pod_size_mm, morph) %>% 
+  distinct() %>%
+  right_join(pods_connect, by = c("tree" = "id")) -> pods_connect_dbh
+
+glm(pods_connect_dbh, formula = cbind(n_predated, (n_capsules - n_predated)) ~ connectivity,
+    family = "binomial") -> m1
+summary(m1)
+
+pods_connect_dbh %>%
+  ggplot(aes(
+    x = connectivity,
+    y = n_predated / n_capsules,
+    succ = n_predated,
+    fail = (n_capsules - n_predated)
+  )) +
+  geom_point(
+    colour = "#440154FF",
+    alpha = 0.7,
+    shape = 16) +
+  geom_smooth(
+    method = "glm", 
+    colour = "#2c365e",
+    se = TRUE,
+    method.args = list(family = "binomial"),
+    formula = cbind(succ, fail) ~ x
+  ) +
+  theme_classic(base_size = 10) +
+  xlab("conspecific density") +
+  ylab("") +
+  scale_y_continuous(breaks = seq(0, 0.6, 0.1)) +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e"),
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -6),
+    plot.caption = element_markdown(colour = "#2c365e", size = 5)
+  ) +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
+  coord_cartesian(ylim = c(0, 0.65), clip = 'off') +
+  labs(caption = paste("binomial glm: β = ", 
+                       parse(text = round(pluck(m1$coefficients, 2), digits = 2)),
+                       " [", parse(text = round(pluck(confint(m1, "connectivity"), 1), digits = 2)), ", ", 
+                       parse(text = round(pluck(confint(m1, "connectivity"), 2), digits = 2)), "],",
+                       " _p_ = < 0.001", sep = ""),
+       subtitle = "propotion of \npredated fruits") -> p3
+
+ggsave(here::here("01_glm.png"), plot = p3,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+
+```
+
+## n pods ~ connectivity
+
+```{r}
+glm(formula = n_capsules ~ connectivity, data = pods_connect_dbh) -> m2
+summary(m2)
+
+pods_connect_dbh %>%
+  ggplot(aes(
+    x = connectivity,
+    y = n_capsules)) +
+  geom_point(
+    colour = "#440154FF",
+    alpha = 0.7,
+    shape = 16) +
+  geom_smooth(
+    method = "glm", 
+    colour = "#2c365e",
+    se = TRUE
+  ) +
+  theme_classic(base_size = 10) +
+  xlab("conspecific density") +
+  ylab("") +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e"),
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -3),
+    plot.caption = element_markdown(colour = "#2c365e", size = 5)
+  ) +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
+  coord_cartesian(ylim = c(0, 500), clip = 'off') +
+  labs(caption = paste("gaussian glm: β = ", 
+                       parse(text = round(pluck(m2$coefficients, 2), digits = 2)),
+                       " [", parse(text = round(pluck(confint(m2, "connectivity"), 1), digits = 2)), ", ", 
+                       parse(text = round(pluck(confint(m2, "connectivity"), 2), digits = 2)), "],",
+                       " _p_ = 0.136", sep = ""),
+       subtitle = "n fruits") -> p4
+
+ggsave(here::here("02_glm.png"), plot = p4,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+
+```
+
+## porportion pods aborted ~ connectivity
+
+```{r}
+pod_data %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
+  filter(pod_size_mm < 200) %>% 
+  mutate(pod_aborted = case_when(pod_size_mm < 40 &
+                               morph == "symmetrical_locules" ~ TRUE,
+                             is.na(pod_size_mm) ~ NA,
+                             TRUE ~ FALSE)) %>% 
+  count(tree, pod_aborted) %>%
+  spread(pod_aborted, n) %>% 
+  rename(n_aborted = `TRUE`) %>%
+  mutate(`FALSE` = replace_na(`FALSE`, 0),
+         n_predated = replace_na(n_aborted, 0)) %>%
+  summarise(
+    tree = tree,
+    n_aborted = n_aborted,
+    n_capsules = n_aborted + `FALSE`,
+    proportion_aborted = n_aborted / (n_aborted + `FALSE`)
+  ) -> porportion_pods_aborted
+
+porportion_pods_aborted %>%
+  left_join(pods_connect, by = c("tree" = "id")) -> clean_data_aborted
+
+glm(clean_data_aborted, formula = cbind(n_aborted, (n_capsules.x - n_aborted)) ~ connectivity,
+    family = "binomial") -> m3
+summary(m3)
+
+clean_data_aborted %>%
+  ggplot(aes(
+    x = connectivity,
+    y = n_aborted / n_capsules.x,
+    succ = n_aborted,
+    fail = (n_capsules.x - n_aborted)
+  )) +
+  geom_point(
+    colour = "#440154FF",
+    alpha = 0.7,
+    shape = 16) +
+  geom_smooth(
+    method = "glm", 
+    colour = "#2c365e",
+    se = TRUE,
+    method.args = list(family = "binomial"),
+    formula = cbind(succ, fail) ~ x
+  ) +
+  theme_classic(base_size = 10) +
+  xlab("conspecific density") +
+  ylab("") +
+  scale_y_continuous(breaks = seq(0, 0.7, 0.1)) +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e"),
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -6),
+    plot.caption = element_markdown(colour = "#2c365e", size = 5)
+  ) +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
+  coord_cartesian(ylim = c(0, 0.75), clip = 'off') +
+  labs(caption = paste("binomial glm: β = ", 
+                       parse(text = round(pluck(m3$coefficients, 2), digits = 2)),
+                       " [", parse(text = round(pluck(confint(m3, "connectivity"), 1), digits = 2)), ", ", 
+                       parse(text = round(pluck(confint(m3, "connectivity"), 2), digits = 2)), "],",
+                       " _p_ = < 0.001", sep = ""),
+       subtitle = "propotion of \naborted fruits") -> p5
+
+ggsave(here::here("03_glm.png"), plot = p5,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+
+```
+
+## pod size ~ connectivity
+
+```{r}
+pods_connect_dbh %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
+  filter(morph == "symmetrical_locules") %>% 
+  glm(formula = pod_size_mm ~ connectivity,
+    family = "gaussian") -> m4
+summary(m4)
+
+pods_connect_dbh %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
+  filter(morph == "symmetrical_locules") %>% 
+  ggplot(aes(
+    x = connectivity,
+    y = pod_size_mm
+  )) +
+  geom_jitter(
+    colour = "#440154FF",
+    alpha = 0.5,
+    shape = 16) +
+  geom_smooth(
+    method = "glm", 
+    colour = "#2c365e",
+    se = TRUE
+  ) +
+  theme_classic(base_size = 10) +
+  xlab("conspecific density") +
+  ylab("") +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e"),
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -3),
+    plot.caption = element_markdown(colour = "#2c365e", size = 5)
+  ) +
+  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
+  coord_cartesian(ylim = c(0, 150), clip = 'off') +
+  labs(caption = paste("gaussian glm: β = ", 
+                       parse(text = round(pluck(m4$coefficients, 2), digits = 2)),
+                       " [", parse(text = round(pluck(confint(m4, "connectivity"), 1), digits = 2)), ", ", 
+                       parse(text = round(pluck(confint(m4, "connectivity"), 2), digits = 2)), "],",
+                       " _p_ = < 0.001", sep = ""),
+       subtitle = "fruit size (mm)") -> p6
+
+ggsave(here::here("04_glm.png"), plot = p6,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+```
+
+
+## Map of seed traps
+
+```{r}
+readRDS("/Users/eleanorjackson/OneDrive - University of Reading/spatial-premature-fruit-drop/data/clean/trap_data.rds") %>%
+  filter(year == "2018") %>% 
+  distinct(trap, x, y) -> trap_loc
+
+ggplot(trap_loc, aes(x = x, y = y)) +
+  geom_point(
+    colour = "#440154FF",
+    alpha = 0.7,
+    shape = 16) +
+  theme_classic(base_size = 10) +
+  labs(x = "1000m", y = "500m") +
+  theme(
+    line = element_blank(),
+    axis.title.y = element_text(colour = "#2c365e", angle = 0),
+    axis.title.x = element_text(colour = "#2c365e", hjust = 1),
+    axis.text.y = element_blank(),
+    axis.text.x = element_blank(),
+    axis.line.y = element_line(arrow = grid::arrow(length = unit(0.2, "cm"), 
+                                                       ends = "last"), 
+                               colour = "#2c365e", size = 0.5),
+    axis.line.x = element_line(arrow = grid::arrow(length = unit(0.2, "cm"), 
+                                                       ends = "last"), 
+                               colour = "#2c365e", size = 0.5)
+  ) -> p4
+  
+ggsave(here::here("03_trap_map.png"), plot = p4,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+
+```
+
