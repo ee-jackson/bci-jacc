@@ -2,7 +2,7 @@
 output/plots
 output/tables
 code/graveyard
-docs/photos
+photos/
 
 #ignore these files
 code/exploration/*html
