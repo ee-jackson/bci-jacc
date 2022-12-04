@@ -18,6 +18,7 @@ library("sf")
 library("ggmap")
 library("patchwork")
 library("ggtext")
+library("geosphere")
 ```
 
 ## Map of conspecific density across BCI
@@ -282,44 +283,79 @@ ggsave(here::here("01_histogram_new2.png"), plot = p2,
   
 ```
 
-## proportion pods predated ~ connectivity
-
+## sort out pod data
 ```{r}
-read.csv(here::here("data", "raw", "jacaranda_pods.csv")) -> pod_data
+read.csv(here::here("data", "raw", "jacaranda_pods.csv")) %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>% 
+  filter(!is.na(pod_half_whole) & !is.na(pod_predated)) %>%
+  mutate(pod_half_whole = recode(pod_half_whole, "half" = 0.5,
+                                  "whole" = 1)) %>%
+  mutate(pod_size_adjusted = coalesce(pod_size_string_mm, pod_size_mm)) %>%
+  filter(!is.na(pod_size_adjusted) & morph != "missing") -> pod_data
+
+# n aborted
+pod_data %>% 
+  mutate(pod_aborted = case_when(pod_size_adjusted < 40 & 
+                                   morph == "symmetrical_locules" ~ TRUE,
+                                 is.na(pod_size_adjusted) ~ NA,
+                                 TRUE ~ FALSE)) %>%
+  filter(pod_aborted == TRUE) %>%
+  group_by(tree) %>% 
+  summarise(n_aborted = sum(pod_half_whole, na.rm = TRUE), .groups = "drop"
+            ) -> aborted_pods
+  
+# n predated
+pod_data %>%
+  filter(pod_predated == TRUE) %>%
+  group_by(tree) %>% 
+  summarise(n_predated = sum(pod_half_whole, na.rm = TRUE), .groups = "drop"
+            ) -> predated_pods
+
+# n healthy mature
+pod_data %>% 
+  mutate(pod_healthy = case_when(pod_size_adjusted >= 40 & 
+                                   morph == "symmetrical_locules" ~ TRUE,
+                                 is.na(pod_size_adjusted) ~ NA,
+                                 TRUE ~ FALSE)) %>%
+  filter(pod_healthy == TRUE) %>%
+  group_by(tree) %>% 
+  summarise(n_healthy = sum(pod_half_whole, na.rm = TRUE), .groups = "drop"
+            ) -> healthy_pods
+
+full_join(predated_pods, aborted_pods) %>% 
+  full_join(healthy_pods) %>% 
+  mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
+  mutate(across(where(is.numeric), ~ceiling(.x))) %>%
+  mutate(total_pods = n_healthy + n_aborted + n_predated) -> clean_pods
 
 pod_data %>%
-  count(tree, pod_predated) %>%
-  spread(pod_predated, n) %>%
-  rename(n_predated = `TRUE`) %>%
-  mutate(`FALSE` = replace_na(`FALSE`, 0),
-         n_predated = replace_na(n_predated, 0)) %>%
-  summarise(
-    tree = tree,
-    n_predated = n_predated,
-    n_capsules = n_predated + `FALSE`,
-    proportion_predated = n_predated / (n_predated + `FALSE`)
-  ) -> porportion_pods
+  select(tree, dbh_mm, crown_radius_m, date) %>%
+  distinct() -> tree_data
 
 bci_focal_connect %>%
   mutate(id = gsub("EJ", "", id) ) %>%
   mutate(id = gsub("^(JACC)", "\\1_\\2", id)) %>% 
-  right_join(porportion_pods, by = c("id" = "tree")) -> pods_connect
+  right_join(clean_pods, by = c("id" = "tree")) %>%
+  left_join(tree_data, by = c("id" = "tree")) -> pods_connect
 
-pod_data %>% 
-  select(tree, dbh_mm, pod_size_mm, morph) %>% 
-  distinct() %>%
-  right_join(pods_connect, by = c("tree" = "id")) -> pods_connect_dbh
+```
 
-glm(pods_connect_dbh, formula = cbind(n_predated, (n_capsules - n_predated)) ~ connectivity,
+
+## proportion pods predated ~ connectivity
+
+```{r}
+
+glm(pods_connect, formula = cbind(n_predated, (total_pods - n_predated)) ~ connectivity,
     family = "binomial") -> m1
 summary(m1)
 
-pods_connect_dbh %>%
+pods_connect %>%
   ggplot(aes(
     x = connectivity,
-    y = n_predated / n_capsules,
+    y = n_predated / total_pods,
     succ = n_predated,
-    fail = (n_capsules - n_predated)
+    fail = (total_pods - n_predated)
   )) +
   geom_point(
     colour = "#440154FF",
@@ -335,7 +371,7 @@ pods_connect_dbh %>%
   theme_classic(base_size = 10) +
   xlab("conspecific density") +
   ylab("") +
-  scale_y_continuous(breaks = seq(0, 0.6, 0.1)) +
+  scale_y_continuous(breaks = seq(0, 0.6, 0.6)) +
   theme(
     line = element_blank(),
     axis.text.x = element_blank(),
@@ -362,13 +398,13 @@ ggsave(here::here("01_glm.png"), plot = p3,
 ## n pods ~ connectivity
 
 ```{r}
-glm(formula = n_capsules ~ connectivity, data = pods_connect_dbh) -> m2
+glm(formula = total_pods ~ connectivity, data = pods_connect) -> m2
 summary(m2)
 
-pods_connect_dbh %>%
+pods_connect %>%
   ggplot(aes(
     x = connectivity,
-    y = n_capsules)) +
+    y = total_pods)) +
   geom_point(
     colour = "#440154FF",
     alpha = 0.7,
@@ -407,38 +443,16 @@ ggsave(here::here("02_glm.png"), plot = p4,
 ## porportion pods aborted ~ connectivity
 
 ```{r}
-pod_data %>%
-  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
-  filter(pod_size_mm < 200) %>% 
-  mutate(pod_aborted = case_when(pod_size_mm < 40 &
-                               morph == "symmetrical_locules" ~ TRUE,
-                             is.na(pod_size_mm) ~ NA,
-                             TRUE ~ FALSE)) %>% 
-  count(tree, pod_aborted) %>%
-  spread(pod_aborted, n) %>% 
-  rename(n_aborted = `TRUE`) %>%
-  mutate(`FALSE` = replace_na(`FALSE`, 0),
-         n_predated = replace_na(n_aborted, 0)) %>%
-  summarise(
-    tree = tree,
-    n_aborted = n_aborted,
-    n_capsules = n_aborted + `FALSE`,
-    proportion_aborted = n_aborted / (n_aborted + `FALSE`)
-  ) -> porportion_pods_aborted
-
-porportion_pods_aborted %>%
-  left_join(pods_connect, by = c("tree" = "id")) -> clean_data_aborted
-
-glm(clean_data_aborted, formula = cbind(n_aborted, (n_capsules.x - n_aborted)) ~ connectivity,
+glm(pods_connect, formula = cbind(n_aborted, (total_pods - n_aborted)) ~ connectivity,
     family = "binomial") -> m3
 summary(m3)
 
-clean_data_aborted %>%
+pods_connect %>%
   ggplot(aes(
     x = connectivity,
-    y = n_aborted / n_capsules.x,
+    y = n_aborted / total_pods,
     succ = n_aborted,
-    fail = (n_capsules.x - n_aborted)
+    fail = (total_pods - n_aborted)
   )) +
   geom_point(
     colour = "#440154FF",
@@ -454,7 +468,7 @@ clean_data_aborted %>%
   theme_classic(base_size = 10) +
   xlab("conspecific density") +
   ylab("") +
-  scale_y_continuous(breaks = seq(0, 0.7, 0.1)) +
+  scale_y_continuous(breaks = seq(0, 0.8, 0.8)) +
   theme(
     line = element_blank(),
     axis.text.x = element_blank(),
@@ -465,13 +479,13 @@ clean_data_aborted %>%
     plot.caption = element_markdown(colour = "#2c365e", size = 5)
   ) +
   theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
-  coord_cartesian(ylim = c(0, 0.75), clip = 'off') +
+  coord_cartesian(ylim = c(0, 0.85), clip = 'off') +
   labs(caption = paste("binomial glm: β = ", 
                        parse(text = round(pluck(m3$coefficients, 2), digits = 2)),
                        " [", parse(text = round(pluck(confint(m3, "connectivity"), 1), digits = 2)), ", ", 
                        parse(text = round(pluck(confint(m3, "connectivity"), 2), digits = 2)), "],",
                        " _p_ = < 0.001", sep = ""),
-       subtitle = "propotion of \naborted fruits") -> p5
+       subtitle = "propotion of \nimmature fruits") -> p5
 
 ggsave(here::here("03_glm.png"), plot = p5,
     device = "png", dpi = 600, width = 120, height = 80, units = "mm")
@@ -490,15 +504,16 @@ summary(m4)
 
 pods_connect_dbh %>%
   mutate(pod_size_mm = as.numeric(pod_size_mm)) %>%
-  filter(morph == "symmetrical_locules") %>% 
+  filter(morph == "symmetrical_locules") %>%
   ggplot(aes(
     x = connectivity,
     y = pod_size_mm
   )) +
-  geom_jitter(
-    colour = "#440154FF",
-    alpha = 0.5,
-    shape = 16) +
+  geom_jitter(size = 1, alpha = 0.25, colour = "#440154FF", 
+              shape = 16, width = 0.2) +
+  stat_summary(aes(group = tree), fun = median, geom = "point",
+               size = 2, stroke = 0.2, shape = 21,
+               fill = "#440154FF", colour = "black" ) +
   geom_smooth(
     method = "glm", 
     colour = "#2c365e",
@@ -516,17 +531,25 @@ pods_connect_dbh %>%
     plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -3),
     plot.caption = element_markdown(colour = "#2c365e", size = 5)
   ) +
-  theme(plot.margin = margin(1, 1, 1, 1, "mm")) +
   coord_cartesian(ylim = c(0, 150), clip = 'off') +
   labs(caption = paste("gaussian glm: β = ", 
                        parse(text = round(pluck(m4$coefficients, 2), digits = 2)),
-                       " [", parse(text = round(pluck(confint(m4, "connectivity"), 1), digits = 2)), ", ", 
-                       parse(text = round(pluck(confint(m4, "connectivity"), 2), digits = 2)), "],",
+                       " [", 
+                       parse(text = round(pluck(confint(m4, "connectivity"), 1), 
+                                          digits = 2)), 
+                       ", ", 
+                       parse(text = round(pluck(confint(m4, "connectivity"), 2), 
+                                          digits = 2)),
+                       "],",
                        " _p_ = < 0.001", sep = ""),
-       subtitle = "fruit size (mm)") -> p6
-
-ggsave(here::here("04_glm.png"), plot = p6,
-    device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+       subtitle = "fruit size (mm)") + 
+  annotate(geom = "point", x = 1008.7, y = 159.5,
+           colour = "black", stroke = 0.2, fill = "#440154FF", shape = 21) + 
+  annotate(geom = "text", label = "- tree median", x = 1010, y = 160, 
+           size = 2, colour = "#2c365e") -> p7
+  
+ggsave(here::here("07_glm.png"), plot = p7,
+    device = "png", dpi = 600, width = 120, height = 80, units = "mm")  
 ```
 
 
@@ -556,10 +579,65 @@ ggplot(trap_loc, aes(x = x, y = y)) +
     axis.line.x = element_line(arrow = grid::arrow(length = unit(0.2, "cm"), 
                                                        ends = "last"), 
                                colour = "#2c365e", size = 0.5)
-  ) -> p4
+  ) -> p8
   
-ggsave(here::here("03_trap_map.png"), plot = p4,
+ggsave(here::here("03_trap_map.png"), plot = p8,
     device = "png", dpi = 600, width = 120, height = 80, units = "mm")
 
 ```
 
+
+## fruit set ~ connectivity
+
+```{r}
+glm(pods_connect, formula = n_healthy ~ connectivity + dbh_mm,
+    family = "gaussian") -> m5
+
+summary(m5)
+
+pods_connect %>%
+  ggplot(aes(
+    x = connectivity,
+    y = n_healthy 
+  )) +
+  geom_point(
+    colour = "#440154FF",
+    alpha = 0.7,
+    shape = 16) +
+  geom_smooth(
+    method = "glm", 
+    colour = "#2c365e",
+    se = TRUE,
+    method.args = list(family = "gaussian")
+  ) +
+  theme_classic(base_size = 10) +
+  xlab("conspecific density") +
+  ylab("") +
+  scale_y_continuous(breaks = seq(0, 200, 200)) +
+  theme(
+    line = element_blank(),
+    axis.text.x = element_blank(),
+    legend.position = "none",
+    axis.text.y = element_text(colour = "#2c365e"),
+    axis.title.x = element_text(colour = "#2c365e"),
+    plot.subtitle = element_text(colour = "#2c365e", hjust = -0.07, vjust = -3),
+    plot.caption = element_markdown(colour = "#2c365e", size = 5)
+  ) +
+  coord_cartesian(ylim = c(0, 200), clip = 'off') +
+  labs(caption = paste("gaussian glm: β = ",
+                       parse(text = round(pluck(m5$coefficients, 2), digits = 2)),
+                       " [",
+                       parse(text = round(pluck(confint(m5, "connectivity"), 1),
+                                          digits = 2)),
+                       ", ",
+                       parse(text = round(pluck(confint(m5, "connectivity"), 2),
+                                          digits = 2)),
+                       "],",
+                       " _p_ = 0.20", sep = ""),
+       subtitle = "n mature fruits") -> p9
+
+ggsave(here::here("09_glm.png"), plot = p9,
+     device = "png", dpi = 600, width = 120, height = 80, units = "mm")
+
+
+```
