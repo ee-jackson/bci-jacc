@@ -6,9 +6,9 @@ photos/
 
 #ignore these files
 code/exploration/*html
-docs/*pdf
-*docx
-*doc
+
+/docs/
+!/docs/*md
 
 # data will be archived elsewhere
 data/
