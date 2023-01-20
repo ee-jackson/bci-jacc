@@ -31,6 +31,9 @@ pod_data %>%
   distinct() -> tree_data
 # add crown area column
 
+
+# count immature pods -----------------------------------------------------
+
 pod_data %>%
   filter(fragment == FALSE) %>% 
   mutate(pod_immature = case_when(
@@ -43,6 +46,9 @@ pod_data %>%
   group_by(tree) %>%
   summarise(n_immature = sum(pod_half_whole, na.rm = TRUE), .groups = "drop") -> immature_pods
 
+
+# count mature pods -------------------------------------------------------
+
 pod_data %>%
   filter(fragment == FALSE) %>% 
   mutate(pod_mature = case_when(
@@ -54,6 +60,9 @@ pod_data %>%
   filter(pod_mature == TRUE) %>%
   group_by(tree) %>%
   summarise(n_mature = sum(pod_half_whole, na.rm = TRUE), .groups = "drop") -> mature_pods
+
+
+# count predated pods -----------------------------------------------------
 
 pod_data %>%
   filter(fragment == FALSE) %>% 
@@ -68,15 +77,41 @@ pod_data %>%
   group_by(tree) %>%
   summarise(n_predated = sum(pod_half_whole, na.rm = TRUE), .groups = "drop") -> predated_pods
 
+
+# count total pods --------------------------------------------------------
+
 pod_data %>%
   filter(fragment == FALSE) %>% 
   group_by(tree) %>%
-  summarise(n_total_pods = sum(pod_half_whole, na.rm = TRUE), .groups = "drop") -> total_pods
-  
+  summarise(n_total = sum(pod_half_whole, na.rm = TRUE), .groups = "drop") -> total_pods
+
+
+# estimate fruit set ------------------------------------------------------
+
+pod_data %>%
+  filter(fragment == FALSE) %>% 
+  select(tree, crown_radius_m) %>%
+  distinct() %>%
+  mutate(crown_area = pi * crown_radius_m^2) %>%
+  mutate(n_quadrats = case_when(
+    str_detect(crown_radius_m, "\\d{0,2}(\\.0{1})") ~ floor(crown_radius_m),
+         TRUE ~ ceiling(crown_radius_m)
+    )) %>%
+  mutate(n_quadrats = n_quadrats * 4) %>%
+  left_join(total_pods) %>%
+  rowwise() %>%
+  mutate(mean_fruit_set = n_total/n_quadrats) %>%
+  mutate(total_fruit_set = round(mean_fruit_set * crown_area)) %>%
+  select(tree, total_fruit_set) -> fruit_set
+
+
+# combine groups ----------------------------------------------------------
+
 full_join(immature_pods, mature_pods, by = "tree") %>%
   full_join(predated_pods, by = "tree") %>%
   mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
-  full_join(total_pods, by = "tree") -> grouped_pod_data
+  full_join(total_pods, by = "tree") %>%
+  full_join(fruit_set, by = "tree") -> grouped_pod_data
 
-full_join(tree_data, grouped_pod_data, by = c("tree_id" = "tree"))
-# add individual fecundity
+full_join(tree_data, grouped_pod_data, by = c("tree_id" = "tree")) %>%
+  saveRDS(here::here("data", "clean", "pod_data.rds"))
