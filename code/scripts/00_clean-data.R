@@ -113,5 +113,21 @@ full_join(immature_pods, mature_pods, by = "tree") %>%
   full_join(total_pods, by = "tree") %>%
   full_join(fruit_set, by = "tree") -> grouped_pod_data
 
-full_join(tree_data, grouped_pod_data, by = c("tree_id" = "tree")) %>%
+
+# get tree co-ordinates ---------------------------------------------------
+
+plotKML::readGPX(here::here("data", "raw", "jacaranda_waypoints.gpx")) %>%
+  map_df( ~ .) %>%
+  rename(tree_id = name) %>%
+  arrange(tree_id) %>%
+  select(tree_id, lon, lat) %>%
+  filter(!grepl("NS", tree_id)) %>%
+  mutate(tree_id = gsub("EJ", "", tree_id) ) %>%
+  mutate(tree_id = gsub("^(JACC)", "\\1_\\2", tree_id)) %>%
+  right_join(tree_data) -> tree_data_coords
+
+
+# output ------------------------------------------------------------------
+
+full_join(tree_data_coords, grouped_pod_data, by = c("tree_id" = "tree")) %>%
   saveRDS(here::here("data", "clean", "pod_data.rds"))
