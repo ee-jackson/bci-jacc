@@ -1,0 +1,88 @@
+---
+title: "Test for spatial autocorrelation"
+author: "Eleanor Jackson"
+date: '20 January, 2023'
+always_allow_html: true
+output: 
+  github_document:
+    keep_html: true
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(fig.path = "figures/2023-01-20_test-spatial-autocorrelation/")
+```
+
+```{r packages}
+library("tidyverse")
+library("sf")
+library("ncf")
+library("spdep")
+library("sp")
+  
+```
+
+```{r data}
+readRDS(here::here("data", "clean", "pod_data.rds")) %>%
+  sf::st_as_sf(coords = c("lat", "lon"), crs = 4326, remove = FALSE) %>%
+  rowwise() %>%
+  mutate(predation_rate = n_predated / n_total) %>%
+  drop_na() -> pod_data
+
+```
+
+## Correlogram
+
+A correlogram shows the correlation coefficient for the series lagged (in distance) by one delay at a time. e.g. at lag one you’re looking at the correlation between a point and it’s nearest neighbour. At lag two you’re looking at the correlation between a point and it’s second nearest neighbour.
+
+Values close to 1 indicate clustering while values close to -1 indicate dispersion. A random arrangement would give a value that is close to 0.
+
+```{r correlogram}
+# using 10 m increments
+plot(ncf::correlog(x = pod_data$lat, y = pod_data$lon, z =  pod_data$predation_rate,
+              latlon = TRUE, increment = 0.01))
+
+```
+
+Here, values significant at a nominal (two-sided) 5%-level are represented by filled circles and non-significant values by open circles. 
+
+Most of the plot shows values that are close to zero, without significant auto correlation. There are a few points that do show correlation but they seem quite random and there is not many of them... outliers? I think that if there was a pattern of spatial autocorrelation in the data we would see values that tended towards zero as distance increased.
+
+## Moran's I
+
+The expected value of Moran's I under the null hypothesis of no spatial autocorrelation is `-1/(n-1)`, which equals `-0.01123596` for this data. 
+
+Values significantly below `-1/(n-1)` indicate negative spatial autocorrelation and values significantly above `-1/(n-1)` indicate positive spatial autocorrelation. 
+
+```{r morans-i}
+# detect nearest neighbours within a 15 km radius (i.e. whole island)
+spdep::dnearneigh(pod_data$geometry, 0, 15, 
+                  row.names = pod_data$tree_id,  
+                  longlat = TRUE) -> nn
+
+# add spatial weights
+lw <- spdep::nb2listw(nn, style = "W", zero.policy = TRUE) 
+
+# Moran's test for spatial autocorrelation
+spdep::moran.test(pod_data$predation_rate, lw) 
+
+```
+
+There is very little difference between the expected and observed Moran's I, and the test is non significant, meaning we can accept the null hypothesis of no spatial autocorrelation.
+
+## Variogram
+
+A variogram describes the variance of the difference between values at two locations. 
+
+Here, the x axis represents the distance between traps (km) and each point represents a pair of observations. The distance at which the variogram stops increasing and flattens out is the range. Traps which are closer together than this distance are spatially autocorrelated.
+
+```{r variogram}
+sp::coordinates(pod_data) = ~lat+lon
+
+plot(
+    gstat::variogram(predation_rate ~ 1, data = pod_data, 
+        width = 0.001, cutoff = 15000) 
+)
+
+```
+
+Looks to me like we don't have any spatial autocorrelation - we immediately reach the 'sill' where the semivariance is flat.
