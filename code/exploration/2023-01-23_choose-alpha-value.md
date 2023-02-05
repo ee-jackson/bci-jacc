@@ -1,32 +1,39 @@
----
-title: "Choose an alpha value"
-author: "Eleanor Jackson"
-date: '23 January, 2023'
-always_allow_html: true
-output: 
-  github_document:
-    keep_html: true
----
+Choose an alpha value
+================
+Eleanor Jackson
+23 January, 2023
 
-```{r setup, include = FALSE}
-knitr::opts_chunk$set(fig.path = "figures/2023-01-23_choose-alpha-value/")
-ggplot2::theme_set(ggplot2::theme_classic(base_size = 10))
-```
+To determine the buffer radius to use for our connectivity calculation
+we will fit models with varying values of *r* and compare their AIC
+values. *r* is the average migration distance of our seed predator and
+*r* = 1 / $\alpha$
 
-To determine the buffer radius to use for our connectivity calculation we will fit models with varying values of _r_ and compare their AIC values. _r_ is the average migration distance of our seed predator and _r_ = 1 / $\alpha$
-
-__Connectivity__\
+**Connectivity**  
 
 $$C_{i} = \sum exp(-\, \alpha \, dist_{ji})$$
 
-```{r packages}
+``` r
 library("tidyverse")
+```
+
+    ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──
+
+    ## ✓ ggplot2 3.3.5      ✓ purrr   0.3.4 
+    ## ✓ tibble  3.1.6      ✓ dplyr   1.0.10
+    ## ✓ tidyr   1.2.0      ✓ stringr 1.4.0 
+    ## ✓ readr   2.0.2      ✓ forcats 0.5.1
+
+    ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
+    ## x dplyr::filter() masks stats::filter()
+    ## x dplyr::lag()    masks stats::lag()
+
+``` r
 library("geosphere")
 ```
 
 ## get data
 
-```{r data}
+``` r
 readRDS(here::here("data", "clean", "pod_data.rds")) %>%
   select(tree_id, lon, lat) -> focal_jacc
 
@@ -37,11 +44,17 @@ plotKML::readGPX(here::here("data", "maps",
   mutate(tree_id = paste0("CGL_", 1:n())) -> other_jacc
 ```
 
+    ## Registered S3 methods overwritten by 'stars':
+    ##   method             from
+    ##   st_bbox.SpatRaster sf  
+    ##   st_crs.SpatRaster  sf
+
 ## remove duplicated trees
 
-Trees mapped in our 'on the ground' data could be the same individuals as those in Carol's aerial maps.
+Trees mapped in our ‘on the ground’ data could be the same individuals
+as those in Carol’s aerial maps.
 
-```{r}
+``` r
 geosphere::distm(cbind(pull(focal_jacc, lon), pull(focal_jacc, lat)), 
                  cbind(pull(other_jacc, lon), pull(other_jacc, lat)), 
                  fun = distGeo) -> dist_matrix
@@ -64,7 +77,7 @@ rbind(other_jacc, focal_jacc) %>%
 
 ## calculate pairwise distances between trees
 
-```{r}
+``` r
 calculate_dist <- function (data) {
   
   data %>%
@@ -86,8 +99,7 @@ distance_df <- calculate_dist(all_jacc)
 
 ## calculate connectivity using a range of radii
 
-```{r}
-
+``` r
 focal_jacc %>%
   distinct(tree_id) %>%
   pull(tree_id) -> focal_tree_id_list
@@ -111,7 +123,14 @@ calculate_connectivity <- function (data, id, alpha) {
 
 connectivity_dfs <- pmap(alpha_tree_id, .f = calculate_connectivity, 
                          data = distance_df)
+```
 
+    ## Note: Using an external vector in selections is ambiguous.
+    ## ℹ Use `all_of(id)` instead of `id` to silence this message.
+    ## ℹ See <https://tidyselect.r-lib.org/reference/faq-external-vector.html>.
+    ## This message is displayed once per session.
+
+``` r
 connectivity_dfs %>%
   dplyr::bind_rows() -> all_connectivity_dfs
 
@@ -123,14 +142,11 @@ readRDS(here::here("data", "clean", "pod_data.rds")) %>%
   nest() %>%
   ungroup() %>%
   pull(data) -> connectivity_dfs_alpha
-
 ```
 
-# fit models and look at AIC 
+# fit models and look at AIC
 
-```{r}
-
-
+``` r
 fit_glmms <- function (data, predictor) {
   lme4::glmer(
     data,
@@ -148,9 +164,8 @@ lapply(models, AIC) -> AIC_list
 
 tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
   ggplot(aes(x = radius, y = AIC)) + geom_point()
-  
-
 ```
 
-A radius of __75__ has the lowest AIC.
+![](figures/2023-01-23_choose-alpha-value/unnamed-chunk-4-1.png)<!-- -->
 
+A radius of **75** has the lowest AIC.
