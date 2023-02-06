@@ -101,8 +101,8 @@ pod_data %>%
   left_join(total_pods) %>%
   rowwise() %>%
   mutate(mean_fruit_set = n_total/n_quadrats) %>%
-  mutate(total_fruit_set = round(mean_fruit_set * crown_area)) %>%
-  select(tree, total_fruit_set) -> fruit_set
+  mutate(individ_fecundity = round(mean_fruit_set * crown_area)) %>%
+  select(tree, individ_fecundity) -> fruit_set
 
 
 # combine groups ----------------------------------------------------------
