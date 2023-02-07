@@ -10,7 +10,7 @@ values. *r* is the average migration distance of our seed predator and
 
 **Connectivity**  
 
-$$C_{i} = \sum exp(-\, \alpha \, dist_{ji})$$
+$$C_{i} = \sum exp(-\ \alpha \ dist_{ji})$$
 
 ``` r
 library("tidyverse")
@@ -31,7 +31,7 @@ library("tidyverse")
 library("geosphere")
 ```
 
-## get data
+## Get data
 
 ``` r
 readRDS(here::here("data", "clean", "pod_data.rds")) %>%
@@ -49,7 +49,7 @@ plotKML::readGPX(here::here("data", "maps",
     ##   st_bbox.SpatRaster sf  
     ##   st_crs.SpatRaster  sf
 
-## remove duplicated trees
+## Remove duplicated trees
 
 Trees mapped in our ‘on the ground’ data could be the same individuals
 as those in Carol’s aerial maps.
@@ -75,7 +75,7 @@ rbind(other_jacc, focal_jacc) %>%
   filter(!tree_id %in% duplicate_trees) -> all_jacc
 ```
 
-## calculate pairwise distances between trees
+## Calculate pairwise distances between trees
 
 ``` r
 calculate_dist <- function (data) {
@@ -97,7 +97,7 @@ calculate_dist <- function (data) {
 distance_df <- calculate_dist(all_jacc)
 ```
 
-## calculate connectivity using a range of radii
+## Calculate connectivity using a range of radii
 
 ``` r
 focal_jacc %>%
@@ -144,7 +144,7 @@ readRDS(here::here("data", "clean", "pod_data.rds")) %>%
   pull(data) -> connectivity_dfs_alpha
 ```
 
-# fit models and look at AIC
+## Fit models and look at AIC
 
 ``` r
 fit_glmms <- function (data, predictor) {
@@ -162,10 +162,52 @@ models <- lapply(connectivity_dfs_alpha, fit_glmms, predictor = "connectivity")
 
 lapply(models, AIC) -> AIC_list
 
-tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
+tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) -> AIC_df
+
+AIC_df %>%
   ggplot(aes(x = radius, y = AIC)) + geom_point()
 ```
 
 ![](figures/2023-01-23_choose-alpha-value/unnamed-chunk-4-1.png)<!-- -->
 
 A radius of **75** has the lowest AIC.
+
+I just want to check that we’re not missing something by not looking at
+bigger radii. We don’t know how far our seed predator or pollinators
+travel and a big part of this study was to look for J-C effects at
+larger scales.
+
+``` r
+tibble(radii = seq(100, 15000, 100)) -> radii_list
+
+lapply(radii_list, function(x) 1 / x ) -> alpha_list
+
+merge(focal_tree_id_list, alpha_list) %>%
+  rename(id = x, alpha = radii) -> alpha_tree_id
+
+connectivity_dfs <- pmap(alpha_tree_id, .f = calculate_connectivity, 
+                         data = distance_df)
+
+connectivity_dfs %>%
+  dplyr::bind_rows() -> all_connectivity_dfs
+
+readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
+  drop_na() %>% 
+  mutate_at(c("n_total", "n_predated"), round) %>%
+  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  group_by(alpha) %>%
+  nest() %>%
+  ungroup() %>%
+  pull(data) -> connectivity_dfs_alpha
+
+models <- lapply(connectivity_dfs_alpha, fit_glmms, predictor = "connectivity")
+
+lapply(models, AIC) -> AIC_list
+
+tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
+  ggplot(aes(x = radius, y = AIC)) + geom_point()
+```
+
+![](figures/2023-01-23_choose-alpha-value/unnamed-chunk-5-1.png)<!-- -->
+
+OK nope! Lots of model convergence warnings too.

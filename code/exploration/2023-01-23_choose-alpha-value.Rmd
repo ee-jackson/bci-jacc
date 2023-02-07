@@ -13,18 +13,20 @@ knitr::opts_chunk$set(fig.path = "figures/2023-01-23_choose-alpha-value/")
 ggplot2::theme_set(ggplot2::theme_classic(base_size = 10))
 ```
 
-To determine the buffer radius to use for our connectivity calculation we will fit models with varying values of _r_ and compare their AIC values. _r_ is the average migration distance of our seed predator and _r_ = 1 / $\alpha$
+To determine the buffer radius to use for our connectivity calculation 
+we will fit models with varying values of *r* and compare their AIC values. 
+_r_ is the average migration distance of our seed predator and *r* = 1 / $\alpha$
 
 __Connectivity__\
 
-$$C_{i} = \sum exp(-\, \alpha \, dist_{ji})$$
+$$C_{i} = \sum exp(-\ \alpha \ dist_{ji})$$
 
 ```{r packages}
 library("tidyverse")
 library("geosphere")
 ```
 
-## get data
+## Get data
 
 ```{r data}
 readRDS(here::here("data", "clean", "pod_data.rds")) %>%
@@ -37,7 +39,7 @@ plotKML::readGPX(here::here("data", "maps",
   mutate(tree_id = paste0("CGL_", 1:n())) -> other_jacc
 ```
 
-## remove duplicated trees
+## Remove duplicated trees
 
 Trees mapped in our 'on the ground' data could be the same individuals as those in Carol's aerial maps.
 
@@ -62,7 +64,7 @@ rbind(other_jacc, focal_jacc) %>%
   filter(!tree_id %in% duplicate_trees) -> all_jacc
 ```
 
-## calculate pairwise distances between trees
+## Calculate pairwise distances between trees
 
 ```{r}
 calculate_dist <- function (data) {
@@ -84,7 +86,7 @@ calculate_dist <- function (data) {
 distance_df <- calculate_dist(all_jacc)
 ```
 
-## calculate connectivity using a range of radii
+## Calculate connectivity using a range of radii
 
 ```{r}
 
@@ -126,7 +128,7 @@ readRDS(here::here("data", "clean", "pod_data.rds")) %>%
 
 ```
 
-# fit models and look at AIC 
+## Fit models and look at AIC 
 
 ```{r}
 
@@ -146,11 +148,49 @@ models <- lapply(connectivity_dfs_alpha, fit_glmms, predictor = "connectivity")
 
 lapply(models, AIC) -> AIC_list
 
-tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
+tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) -> AIC_df
+
+AIC_df %>%
   ggplot(aes(x = radius, y = AIC)) + geom_point()
   
 
 ```
 
-A radius of __75__ has the lowest AIC.
+A radius of **`r AIC_df %>% slice(which.min(AIC)) %>% pluck(1,1)`** has the lowest AIC.
 
+I just want to check that we're not missing something by not looking at bigger radii. 
+We don't know how far our seed predator or pollinators travel and 
+a big part of this study was to look for J-C effects at larger scales.
+
+```{r}
+tibble(radii = seq(100, 15000, 100)) -> radii_list
+
+lapply(radii_list, function(x) 1 / x ) -> alpha_list
+
+merge(focal_tree_id_list, alpha_list) %>%
+  rename(id = x, alpha = radii) -> alpha_tree_id
+
+connectivity_dfs <- pmap(alpha_tree_id, .f = calculate_connectivity, 
+                         data = distance_df)
+
+connectivity_dfs %>%
+  dplyr::bind_rows() -> all_connectivity_dfs
+
+readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
+  drop_na() %>% 
+  mutate_at(c("n_total", "n_predated"), round) %>%
+  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  group_by(alpha) %>%
+  nest() %>%
+  ungroup() %>%
+  pull(data) -> connectivity_dfs_alpha
+
+models <- lapply(connectivity_dfs_alpha, fit_glmms, predictor = "connectivity")
+
+lapply(models, AIC) -> AIC_list
+
+tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
+  ggplot(aes(x = radius, y = AIC)) + geom_point()
+```
+
+OK nope! Lots of model convergence warnings too.
