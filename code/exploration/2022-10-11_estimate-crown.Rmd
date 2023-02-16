@@ -13,7 +13,7 @@ knitr::opts_chunk$set(fig.path = "figures/2022-10-11_estimate-crown/")
 
 For *Jacaranda* individuals where we cannot see the canopy it would be useful to have an estimate of crown radius. If there is a strong relationship between DBH and crown radius we should be able to calculate an estimate of the crown radius in the field and use this to inform the length of our transects.
 
-We have access to *Jacaranda copaia* allometry data from Helena collected on BCI that we can use to quantify the relationship between DBH and crown size.
+We have access to *Jacaranda copaia* allometry data from Helene collected on BCI that we can use to quantify the relationship between DBH and crown size.
 
 ```{r packages, message=FALSE, warning=FALSE}
 library("tidyverse")
@@ -63,3 +63,23 @@ So pretending we've just measured a tree with a DBH of 400,
 0.63 + (0.009 * 400) = 4.23. 
 
 That matches up with the figure!
+
+Ok, what about the relationship between crown area and DBH?
+
+```{r}
+fit_a <- lm(crown_map_jacc$Area ~ crown_map_jacc$DBH)
+
+summary(fit_a)
+```
+
+That should be: crown area = -99.42 + (0.38 * DBH)
+
+```{r}
+crown_map_jacc %>%
+  ggplot(aes(DBH, Area)) +
+  geom_point() +
+  geom_smooth(method = 'lm') +
+  theme_classic()
+```
+
+Looks good!
