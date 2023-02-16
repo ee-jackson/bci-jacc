@@ -19,7 +19,7 @@ _r_ is the average migration distance of our seed predator and *r* = 1 / $\alpha
 
 __Connectivity__\
 
-$$C_{i} = \sum exp(-\ \alpha \ dist_{ji})$$
+$$C_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}$$
 
 ```{r packages}
 library("tidyverse")
@@ -67,7 +67,7 @@ st_join(polygon_data, point_data,
 We only want to include reproductive individuals. The minimum reproductive size of *J. copaia* is 20 cm dbh [(Wright et al. 2005)](https://doi.org/10.1017/S0266467405002294).
 
 We can use Helene's allometry data to estimate dbh from crown area 
-(see [`bci-jacc/code/exploration/2022-10-11_estimate-crown.md`](bci-jacc/code/exploration/2022-10-11_estimate-crown.md)).
+(see [`2022-10-11_estimate-crown.md`](2022-10-11_estimate-crown.md)).
 
 DBH = (crown area + 99.42) / 0.38
 
@@ -176,7 +176,8 @@ connectivity_dfs %>%
 readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
   drop_na() %>% 
   mutate_at(c("n_total", "n_predated"), round) %>% 
-  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  left_join(all_connectivity_dfs, by = "tree_id",
+            multiple = "all") %>% 
   group_by(alpha) %>%
   nest() %>%
   ungroup() %>%
@@ -236,7 +237,8 @@ connectivity_dfs %>%
 readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
   drop_na() %>% 
   mutate_at(c("n_total", "n_predated"), round) %>%
-  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  left_join(all_connectivity_dfs, by = "tree_id",
+            multiple = "all") %>% 
   group_by(alpha) %>%
   nest() %>%
   ungroup() %>%
@@ -253,4 +255,4 @@ tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
   ggplot(aes(x = radius, y = AIC)) + geom_point()
 ```
 
-OK nope! Lots of model convergence warnings too.
+OK nope!

@@ -10,7 +10,7 @@ values. *r* is the average migration distance of our seed predator and
 
 **Connectivity**  
 
-$$C_{i} = \sum exp(-\ \alpha \ dist_{ji})$$
+$$C_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}$$
 
 ``` r
 library("tidyverse")
@@ -99,7 +99,7 @@ reproductive size of *J. copaia* is 20 cm dbh [(Wright et
 al. 2005)](https://doi.org/10.1017/S0266467405002294).
 
 We can use Helene’s allometry data to estimate dbh from crown area (see
-[`bci-jacc/code/exploration/2022-10-11_estimate-crown.md`](bci-jacc/code/exploration/2022-10-11_estimate-crown.md)).
+[`2022-10-11_estimate-crown.md`](2022-10-11_estimate-crown.md)).
 
 DBH = (crown area + 99.42) / 0.38
 
@@ -220,17 +220,13 @@ connectivity_dfs %>%
 readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
   drop_na() %>% 
   mutate_at(c("n_total", "n_predated"), round) %>% 
-  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  left_join(all_connectivity_dfs, by = "tree_id",
+            multiple = "all") %>% 
   group_by(alpha) %>%
   nest() %>%
   ungroup() %>%
   pull(data) -> connectivity_dfs_alpha
 ```
-
-    ## Warning in left_join(., all_connectivity_dfs, by = "tree_id"): Each row in `x` is expected to match at most 1 row in `y`.
-    ## ℹ Row 1 of `x` matches multiple rows.
-    ## ℹ If multiple matches are expected, set `multiple = "all"` to silence this
-    ##   warning.
 
 ## Fit models and look at AIC
 
@@ -284,19 +280,13 @@ connectivity_dfs %>%
 readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
   drop_na() %>% 
   mutate_at(c("n_total", "n_predated"), round) %>%
-  left_join(all_connectivity_dfs, by = "tree_id") %>% 
+  left_join(all_connectivity_dfs, by = "tree_id",
+            multiple = "all") %>% 
   group_by(alpha) %>%
   nest() %>%
   ungroup() %>%
   pull(data) -> connectivity_dfs_alpha
-```
 
-    ## Warning in left_join(., all_connectivity_dfs, by = "tree_id"): Each row in `x` is expected to match at most 1 row in `y`.
-    ## ℹ Row 1 of `x` matches multiple rows.
-    ## ℹ If multiple matches are expected, set `multiple = "all"` to silence this
-    ##   warning.
-
-``` r
 model_data <- map(connectivity_dfs_alpha, ~ data.frame(.) %>%
                     mutate(connectivity_sc = scale(connectivity)))
 
@@ -310,4 +300,4 @@ tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) %>%
 
 ![](figures/2023-01-23_choose-alpha-value/unnamed-chunk-7-1.png)<!-- -->
 
-OK nope! Lots of model convergence warnings too.
+OK nope!
