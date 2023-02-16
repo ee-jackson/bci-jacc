@@ -11,20 +11,44 @@
 library("tidyverse")
 library("here")
 library("geosphere")
+library("sf")
+
 
 # data --------------------------------------------------------------------
 
-readRDS(here::here("data", "clean", "pod_data.rds")) %>%
-  select(tree_id, lon, lat) -> focal_jacc
+readRDS(here::here("data", "clean", "pod_data.rds")) %>% 
+  mutate(crown_area_m2 = pi * crown_radius_m^2) %>% 
+  select(tree_id, lon, lat, crown_area_m2) -> focal_jacc
 
-plotKML::readGPX(here::here(
+st_read(here::here(
   "data", "maps",
-  "jacc-map-garzonlopez2012", "jac1co_map.gpx"
-)) %>%
-  map_df(~.) %>%
-  select(lon, lat) %>%
-  mutate(tree_id = paste0("CGL_", 1:n())) -> other_jacc
+  "jacc-map-garzonlopez2012", "JAC1COpointSept.shp"
+)) %>% 
+  filter(!st_is_empty(.)) %>%
+  select(geometry) -> point_data
 
+st_read(here::here(
+  "data", "maps",
+  "polygons-garzonlopez2008", "JAC1CO_pol2008.shp"
+)) %>% 
+  filter(!st_is_empty(.)) %>%
+  select(geometry) -> polygon_data
+
+# filter CGL data to trees that have polygon data and calculate crown area (m^2)
+st_join(polygon_data, point_data, 
+        join = st_within, largest = TRUE, left = FALSE) %>%  
+  mutate(crown_area_m2 = as.numeric(st_area(geometry))) %>% 
+  mutate(tree_id = paste0("CGL_", 1:n()),
+         geometry = st_centroid(geometry)) %>% 
+  sf::st_transform(crs = "+proj=longlat +datum=WGS84", allow_ballpark = FALSE) %>% 
+  mutate(lon = sf::st_coordinates(.)[,1],
+         lat = sf::st_coordinates(.)[,2]) -> other_jacc
+  
+# keep only adult trees
+other_jacc %>%
+  mutate(dbh_estimate_mm = (crown_area_m2 + 99.42) / 0.38) %>%
+  filter(dbh_estimate_mm >= 200) %>% 
+  select(- dbh_estimate_mm) -> other_jacc
 
 # remove duplicate trees --------------------------------------------------
 
@@ -36,19 +60,32 @@ geosphere::distm(cbind(pull(focal_jacc, lon), pull(focal_jacc, lat)),
 rownames(dist_matrix) <- focal_jacc$tree_id
 colnames(dist_matrix) <- other_jacc$tree_id
 
-# assume closest tree within 30 m of focal tree is the same tree
+# assume closest CGL tree within 20 m of focal tree is the same tree
 as.data.frame.table(dist_matrix, responseName = "dist") %>%
-  filter(dist <= 30) %>%
+  filter(dist <= 20) %>% 
   group_by(Var1) %>%
-  slice(which.min(dist)) %>%
-  ungroup() %>%
-  pull(Var2) %>%
-  unique() -> duplicate_trees
+  slice(which.min(dist)) %>% 
+  ungroup() -> duplicate_trees
+  
+other_jacc %>%
+  filter(!tree_id %in% pull(duplicate_trees, Var2)) -> other_jacc_no_dupes
 
-rbind(other_jacc, focal_jacc) %>%
-  filter(!tree_id %in% duplicate_trees) -> all_jacc
+other_jacc_no_dupes %>% 
+  st_drop_geometry() %>% 
+  bind_rows(focal_jacc) -> all_jacc
 
-
+# if focal tree was duplicated in CGL data, use polygon for crown area not radius
+duplicate_trees %>%
+  left_join(other_jacc, by = c("Var2" = "tree_id")) %>% 
+  select(Var1, crown_area_m2) %>% 
+  rename(tree_id = Var1) %>%
+  right_join(y = all_jacc, by = "tree_id", 
+             suffix = c("_poly", "_radius")) %>% 
+  mutate(crown_area_m2 = ifelse(is.na(crown_area_m2_poly), 
+                                crown_area_m2_radius, crown_area_m2_poly)) %>%
+  select(- crown_area_m2_poly, -crown_area_m2_radius) -> all_jacc_areas
+  
+  
 # calculate pairwise distances --------------------------------------------
 
 calculate_dist <- function(data) {
@@ -66,7 +103,7 @@ calculate_dist <- function(data) {
   cbind(data, dists_df)
 }
 
-calculate_dist(all_jacc) -> distance_df
+calculate_dist(all_jacc_areas) -> distance_df
 
 
 # calculate connectivity --------------------------------------------------
@@ -74,8 +111,8 @@ calculate_dist(all_jacc) -> distance_df
 calculate_connectivity <- function(data, id) {
   data %>%
     filter(tree_id != eval(parse(text = id))) %>%
-    select(id) %>%
-    mutate(x = exp(-1 / 75 * eval(parse(text = id)))) %>%
+    select(id, crown_area_m2) %>%
+    mutate(x = exp(-1 / 85 * eval(parse(text = id))) * crown_area_m2) %>%
     summarise(
       tree_id = paste(id),
       connectivity = sum(x)
