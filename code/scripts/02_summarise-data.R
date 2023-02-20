@@ -44,13 +44,15 @@ datasummary(
   kable_classic() %>%
   column_spec(column = 1, width = "10em") %>%
   column_spec(column = 4, image = spec_boxplot(tmp_list,
-    width = 700,
+    width = 700, col = "#6baed6",  medlwd = 2, medcol = "red",
     height = 300, add_label = TRUE, same_lim = FALSE
   )) %>%
   column_spec(column = 5, image = spec_hist(tmp_list,
-    width = 700,
+    width = 700, col = "#6baed6", border = "#6baed6",
     height = 200, same_lim = FALSE
   )) %>%
-  kable_styling(font_size = 16, html_font = "arial") %>%
-  save_kable(here::here("output", "figures", "summary-stats.pdf"), 
-             vwidth = 1476)
+  kable_styling(font_size = 16, html_font = "arial") %>% 
+  kableExtra::as_image(file = here::here("output", "figures", "summary-stats.pdf"), 
+                       width = 4.92) 
+
+# for kableExtra::as_image units are in inches
