@@ -1,0 +1,5 @@
+Parameter,Prior_Distribution,Prior_Location,Prior_Scale,Prior_df
+b_Intercept,student_t,0,2.5,3
+b_connectivity_sc,normal,0,1,NA
+b_individ_fecundity_sc,normal,0,1,NA
+b_connectivity_sc:individ_fecundity_sc,normal,0,1,NA
