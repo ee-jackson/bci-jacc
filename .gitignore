@@ -12,6 +12,7 @@ code/exploration/*html
 
 # Session Data files
 .RData
+.RDataTmp
 
 # User-specific files
 .Ruserdata
@@ -42,6 +43,15 @@ vignettes/*.pdf
 # Temporary files created by R markdown
 *.utf8.md
 *.knit.md
+
+# R Environment Variables
+.Renviron
+
+# translation temp files
+po/*~
+
+# RStudio Connect folder
+rsconnect/
 
 
 ## Mac OS ignores:
