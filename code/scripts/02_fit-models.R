@@ -27,9 +27,7 @@ readRDS(here::here("data", "clean", "connect_pod_data.rds")) %>%
 
 # Bayesian model ----------------------------------------------------------
 
-bprior <- c(prior(normal(0,1), class = b, coef = individ_fecundity_sc),
-            prior(normal(0,1), class = b, coef = connectivity_sc),
-            prior(normal(0,1), class = b, coef = connectivity_sc:individ_fecundity_sc))
+bprior <- prior(normal(0, 1), class = b)
 
 full_model <-
   brm(data = model_data,
