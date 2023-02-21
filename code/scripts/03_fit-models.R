@@ -2,77 +2,58 @@
 
 ## Author: E E Jackson, eleanor.elizabeth.j@gmail.com
 ## Script: fit-models
-## Desc:
+## Desc: fit models and save output
 ## Date created: 2023-02-06
 
 
 # packages ----------------------------------------------------------------
 
-library("here")
 library("tidyverse")
-library("lme4")
-#library("DHARMa")
-#library("broom.mixed")
-
+library("here")
+library("rstan")
+library("brms")
+library("bayestestR")
 
 # data --------------------------------------------------------------------
 
-readRDS(here::here("data", "clean", "connect_pod_data.rds")) -> full_data
+readRDS(here::here("data", "clean", "connect_pod_data.rds")) %>% 
+  mutate(connectivity_sc = scale(connectivity),
+         individ_fecundity_sc = scale(individ_fecundity),
+         dbh_mm_sc = scale(dbh_mm),
+         n_mature_sc = scale(n_mature),
+         n_total_sc = scale(n_total)) %>% 
+  mutate(n_predated = round(n_predated), n_total = round(n_total)
+  ) -> model_data
 
+# Bayesian model ----------------------------------------------------------
 
-# J & C model
-full_data %>%
-  drop_na(n_predated) %>%
-  mutate(n_predated = round(n_predated), n_total = round(n_total)) %>%
-  lme4::glmer(
-            formula = cbind(n_predated, (n_total - n_predated)) ~ 
-              log(individ_fecundity) + log(connectivity) + 
-              log(individ_fecundity):log(connectivity),
-            family = binomial(link = "logit")
-) -> m1
+bprior <- c(prior(normal(0,1), class = b, coef = individ_fecundity_sc),
+            prior(normal(0,1), class = b, coef = connectivity_sc),
+            prior(normal(0,1), class = b, coef = connectivity_sc:individ_fecundity_sc))
 
-summary(m1)
+full_model <-
+  brm(data = model_data,
+      family = binomial(link = logit),
+      n_predated | trials(n_total) ~
+        connectivity_sc + individ_fecundity_sc +
+        connectivity_sc:individ_fecundity_sc,
+      prior = bprior,
+      iter = 12500,
+      warmup = 500,
+      chains = 4,
+      cores = 4,
+      seed = 9,
+      file = (here::here("output", "models", "model_fit.rds")))
 
-#
-full_data %>%
-  drop_na(n_predated) %>%
-  mutate(n_predated = round(n_predated), n_total = round(n_total)) %>%
-  glm(
-    formula = cbind(n_predated, (n_total - n_predated)) ~ 
-      log(connectivity),
-    family = binomial(link = "logit")
-  ) -> m4
+bayestestR::describe_prior(full_model) %>% 
+  as.data.frame() %>%
+  write_csv(here::here("output", "results", "describe_prior.csv"))
 
-summary(m4)
+bayestestR::describe_posterior(full_model,
+                               ci = 0.95,
+                               ci_method = "HDI",
+                               test = c("p_direction", "rope"),
+                               centrality = "median") %>%
+  as.data.frame() %>%
+  write_csv(here::here("output", "results", "describe_posterior.csv"))
 
-#
-full_data %>%
-  drop_na(n_predated) %>%
-  mutate(n_predated = round(n_predated), n_total = round(n_total)) %>%
-  glm(
-    formula = cbind(n_predated, (n_total - n_predated)) ~ 
-      log(individ_fecundity),
-    family = binomial(link = "logit")
-  ) -> m5
-
-summary(m5)
-
-# effect of connectivity on individual fruit production
-glm(full_data,
-            formula = log(n_total) ~ 
-              log(connectivity) + log(dbh_mm),
-            family = gaussian(link = "identity")
-) -> m2
-
-summary(m2)
-
-# effect of connectivity on realised fruit production
-full_data %>%
-  drop_na(n_mature) %>%
-  glm(full_data,
-            formula = log(n_mature) ~ 
-              log(connectivity) + log(dbh_mm),
-            family = gaussian(link = "identity")
-) -> m3
-
-summary(m3)
