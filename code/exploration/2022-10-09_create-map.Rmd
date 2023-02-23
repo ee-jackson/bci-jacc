@@ -8,7 +8,7 @@ output:
     keep_html: true
 ---
 ```{r setup, include = FALSE}
-knitr::opts_chunk$set(fig.path = "figures/2021-10-09_create-map/")
+knitr::opts_chunk$set(fig.path = "figures/2022-10-09_create-map/")
 ```
 
 ```{r packages, message=FALSE, warning=FALSE}

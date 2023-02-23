@@ -1,7 +1,7 @@
 Make a map of focal trees
 ================
 Eleanor Jackson
-21 October, 2022
+23 February, 2023
 
 ``` r
 library("tidyverse")
@@ -47,7 +47,7 @@ bci_basemap %>%
   theme_void()
 ```
 
-![](figures/2021-10-09_create-map/jacc-map-1.png)<!-- -->
+![](figures/2022-10-09_create-map/jacc-map-1.png)<!-- -->
 
 ## Add trails
 
@@ -77,9 +77,10 @@ bci_basemap %>%
   theme_void()
 ```
 
-    ## Coordinate system already present. Adding new coordinate system, which will replace the existing one.
+    ## Coordinate system already present. Adding new coordinate system, which will
+    ## replace the existing one.
 
-![](figures/2021-10-09_create-map/jacc-map-trails-1.png)<!-- -->
+![](figures/2022-10-09_create-map/jacc-map-trails-1.png)<!-- -->
 
 ## plot as a density map
 
@@ -97,9 +98,10 @@ bci_basemap %>%
   theme_void()
 ```
 
-    ## Coordinate system already present. Adding new coordinate system, which will replace the existing one.
+    ## Coordinate system already present. Adding new coordinate system, which will
+    ## replace the existing one.
 
-![](figures/2021-10-09_create-map/density-map-1.png)<!-- -->
+![](figures/2022-10-09_create-map/density-map-1.png)<!-- -->
 
 ## A map with labels
 
@@ -120,7 +122,7 @@ ggplot() +
   theme_void()
 ```
 
-![](figures/2021-10-09_create-map/id-map-1.png)<!-- -->
+![](figures/2022-10-09_create-map/id-map-1.png)<!-- -->
 
 ## Take a look at canopy gap map
 
@@ -130,7 +132,7 @@ gaps <- sf::st_read(here::here("data", "maps",
 ```
 
     ## Reading layer `gaps18to20sp' from data source 
-    ##   `/Users/eleanorjackson/OneDrive - University of Reading/bci-jacc/data/maps/light-gaps-cushman2022/gaps18to20sp.shp' 
+    ##   `/Users/eleanorjackson/Library/CloudStorage/OneDrive-UniversityofReading/bci-jacc/data/maps/light-gaps-cushman2022/gaps18to20sp.shp' 
     ##   using driver `ESRI Shapefile'
     ## Simple feature collection with 5176 features and 7 fields
     ## Geometry type: POLYGON
@@ -144,7 +146,7 @@ ggplot() +
   theme_void()
 ```
 
-![](figures/2021-10-09_create-map/canopy-gaps-1.png)<!-- -->
+![](figures/2022-10-09_create-map/canopy-gaps-1.png)<!-- -->
 
 There are a *lot* of light gaps - let’s try filtering them by `area` so
 we get just the biggest ones. Maybe useful if we can overlay with trails
@@ -163,7 +165,7 @@ ggplot() +
   ggtitle("Canopy gaps 2018 - 2020")
 ```
 
-![](figures/2021-10-09_create-map/canopy-gaps-trails-1.png)<!-- -->
+![](figures/2022-10-09_create-map/canopy-gaps-trails-1.png)<!-- -->
 
 ## Exclusion experiment sites
 
@@ -186,4 +188,4 @@ bci_basemap %>%
   theme_void()
 ```
 
-![](figures/2021-10-09_create-map/exclusion-sites-1.png)<!-- -->
+![](figures/2022-10-09_create-map/exclusion-sites-1.png)<!-- -->
