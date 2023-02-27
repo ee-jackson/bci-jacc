@@ -1,13 +1,28 @@
 Explore interaction effect
 ================
 eleanorjackson
-23 February, 2023
+27 February, 2023
 
 We found that the interaction between individual tree fecundity and
 connectivity had a likely positive effect on the rate of predispersal
 seed predation.
 
-Let’s explore.
+> An important concept of models with multiple predictors is
+> interaction. Interaction means that the effect of a predictor depends
+> on the level of another predictor. A little more technically,
+> interaction is what is left over after the main effects of the factors
+> are added: interaction is the nonadditive influence of the factors.
+
+from Doing Baysian Analysis by John Kruschke p.585
+
+> I want to convince the reader that interaction effects are difficult
+> to interpret. They are nearly impossible to interpret, using only
+> posterior means and standard deviations. Once interactions exist,
+> multiple parameters are in play at the same time.
+
+from Statistical Rethinking by Richard McElreath p.252
+
+Not very encouraging.. Let’s explore.
 
 ``` r
 library("tidyverse")
