@@ -20,12 +20,13 @@ options(brms.file_refit = "on_change")
 # data --------------------------------------------------------------------
 
 readRDS(here::here("data", "clean", "connect_pod_data.rds")) %>% 
+  drop_na() %>%
+  mutate(across(contains("n_"), ~as.integer(.)) %>% 
   mutate(connectivity_sc = scale(connectivity),
          individ_fecundity_sc = scale(individ_fecundity),
          dbh_mm_sc = scale(dbh_mm),
          n_mature_sc = scale(n_mature),
-         n_total_sc = scale(n_total)) %>% 
-  mutate(n_predated = round(n_predated), n_total = round(n_total)
+         n_total_sc = scale(n_total)) 
   ) -> model_data
 
 
@@ -45,7 +46,8 @@ model_predation <-
       chains = 4,
       cores = 4,
       seed = 9,
-      file = (here::here("output", "models", "predation_model_fit.rds")))
+      file = (here::here("output", "models", "predation_model_fit.rds"))
+      )
 
 bayestestR::describe_prior(model_predation) %>% 
   as.data.frame() %>%
@@ -57,7 +59,6 @@ bayestestR::describe_posterior(model_predation,
                                test = c("p_direction", "rope"),
                                centrality = "median") %>%
   as.data.frame() %>%
-  select(-contains("ROPE")) %>% 
   write_csv(here::here("output", "results", "predation_model_describe_posterior.csv"))
 
 
@@ -65,7 +66,7 @@ bayestestR::describe_posterior(model_predation,
 model_fruit_set <-
   brm(data = model_data,
       family = gaussian,
-      n_total ~
+      n_total_sc ~
         connectivity_sc + dbh_mm_sc,
       prior = bprior,
       iter = 12500,
@@ -80,7 +81,6 @@ bayestestR::describe_posterior(model_fruit_set,
                                ci_method = "HDI",
                                centrality = "median") %>% 
   as.data.frame() %>% 
-  select(-contains("ROPE")) %>% 
   write_csv(here::here("output", "results", "fruit_set_model_describe_posterior.csv"))
 
 
@@ -89,7 +89,7 @@ bayestestR::describe_posterior(model_fruit_set,
 model_realised_fecundity <-
   brm(data = model_data,
       family = gaussian,
-      n_mature ~
+      n_mature_sc ~
         connectivity_sc + dbh_mm_sc,
       prior = bprior,
       iter = 12500,
@@ -104,7 +104,6 @@ bayestestR::describe_posterior(model_realised_fecundity,
                                ci_method = "HDI",
                                centrality = "median") %>% 
   as.data.frame() %>% 
-  select(-contains("ROPE")) %>% 
   write_csv(here::here("output", "results", "realised_fecundity_model_describe_posterior.csv"))
 
 # Fruit length model ------------------------------------------------------
@@ -153,5 +152,4 @@ bayestestR::describe_posterior(model_length,
                                ci_method = "HDI",
                                centrality = "median") %>% 
   as.data.frame() %>% 
-  select(-contains("ROPE")) %>% 
   write_csv(here::here("output", "results", "length_model_describe_posterior.csv"))
