@@ -19,7 +19,7 @@ _r_ is the average migration distance of our seed predator and *r* = 1 / $\alpha
 
 __Connectivity__\
 
-$$C_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}$$
+$$S_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}^{b}$$
 
 ```{r packages}
 library("tidyverse")
@@ -150,7 +150,7 @@ focal_jacc %>%
   distinct(tree_id) %>%
   pull(tree_id) -> focal_tree_id_list
 
-tibble(radii = seq(25, 125, 5)) -> radii_list
+tibble(radii = seq(50, 150, 5)) -> radii_list
 
 lapply(radii_list, function(x) 1 / x ) -> alpha_list
 
@@ -158,10 +158,9 @@ merge(focal_tree_id_list, alpha_list) %>%
   rename(id = x, alpha = radii) -> alpha_tree_id
 
 calculate_connectivity <- function (data, id, alpha) {
-  data %>%
-    filter(tree_id != eval(parse(text = id))) %>%
+  data[data$tree_id != eval(id),] %>% 
     select(id, crown_area_m2) %>%
-    mutate(x = exp(- alpha * eval(parse(text = id)) ) * crown_area_m2) %>%
+    mutate(x = exp(- alpha * eval(parse(text = id)) ) * crown_area_m2^(0.5)) %>%
     summarise(connectivity = sum(x),
               tree_id = paste(id),
               alpha = eval(parse(text = paste0(alpha))))
@@ -209,7 +208,11 @@ lapply(models, AIC) -> AIC_list
 tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) -> AIC_df
 
 AIC_df %>%
-  ggplot(aes(x = radius, y = AIC)) + geom_point()
+  ggplot(aes(x = radius, y = AIC)) + 
+  geom_point() +
+  xlab("buffer radius (m)") +
+  geom_vline(xintercept = AIC_df %>% slice(which.min(AIC)) %>% pluck(1,1), 
+             linetype = 2, colour = "red")
   
 
 ```

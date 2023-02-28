@@ -10,7 +10,7 @@ values. *r* is the average migration distance of our seed predator and
 
 **Connectivity**  
 
-$$C_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}$$
+$$S_{i} = \sum_{j \neq i} exp( -\ \alpha \ dist_{ji} ) A_{j}^{b}$$
 
 ``` r
 library("tidyverse")
@@ -18,9 +18,9 @@ library("tidyverse")
 
     ## ── Attaching packages ─────────────────────────────────────── tidyverse 1.3.1 ──
 
-    ## ✔ ggplot2 3.4.1     ✔ purrr   0.3.4
+    ## ✔ ggplot2 3.4.1     ✔ purrr   1.0.1
     ## ✔ tibble  3.1.8     ✔ dplyr   1.1.0
-    ## ✔ tidyr   1.2.0     ✔ stringr 1.5.0
+    ## ✔ tidyr   1.3.0     ✔ stringr 1.5.0
     ## ✔ readr   2.0.2     ✔ forcats 0.5.1
 
     ## ── Conflicts ────────────────────────────────────────── tidyverse_conflicts() ──
@@ -182,7 +182,7 @@ focal_jacc %>%
   distinct(tree_id) %>%
   pull(tree_id) -> focal_tree_id_list
 
-tibble(radii = seq(25, 125, 5)) -> radii_list
+tibble(radii = seq(50, 150, 5)) -> radii_list
 
 lapply(radii_list, function(x) 1 / x ) -> alpha_list
 
@@ -190,10 +190,9 @@ merge(focal_tree_id_list, alpha_list) %>%
   rename(id = x, alpha = radii) -> alpha_tree_id
 
 calculate_connectivity <- function (data, id, alpha) {
-  data %>%
-    filter(tree_id != eval(parse(text = id))) %>%
+  data[data$tree_id != eval(id),] %>% 
     select(id, crown_area_m2) %>%
-    mutate(x = exp(- alpha * eval(parse(text = id)) ) * crown_area_m2) %>%
+    mutate(x = exp(- alpha * eval(parse(text = id)) ) * crown_area_m2^(0.5)) %>%
     summarise(connectivity = sum(x),
               tree_id = paste(id),
               alpha = eval(parse(text = paste0(alpha))))
@@ -251,12 +250,16 @@ lapply(models, AIC) -> AIC_list
 tibble(radius = unlist(radii_list), AIC = unlist(AIC_list)) -> AIC_df
 
 AIC_df %>%
-  ggplot(aes(x = radius, y = AIC)) + geom_point()
+  ggplot(aes(x = radius, y = AIC)) + 
+  geom_point() +
+  xlab("buffer radius (m)") +
+  geom_vline(xintercept = AIC_df %>% slice(which.min(AIC)) %>% pluck(1,1), 
+             linetype = 2, colour = "red")
 ```
 
 ![](figures/2023-01-23_choose-alpha-value/unnamed-chunk-6-1.png)<!-- -->
 
-A radius of **85** has the lowest AIC.
+A radius of **120** has the lowest AIC.
 
 I just want to check that we’re not missing something by not looking at
 bigger radii. We don’t know how far our seed predator or pollinators
