@@ -84,7 +84,8 @@ duplicate_trees %>%
   mutate(crown_area_m2 = ifelse(is.na(crown_area_m2_poly), 
                                 crown_area_m2_radius, crown_area_m2_poly)) %>%
   select(- crown_area_m2_poly, -crown_area_m2_radius) -> all_jacc_areas
-  
+
+saveRDS(all_jacc_areas, here::here("data", "clean", "all_tree_lon_lat.rds"))
   
 # calculate pairwise distances --------------------------------------------
 
@@ -109,10 +110,10 @@ calculate_dist(all_jacc_areas) -> distance_df
 # calculate connectivity --------------------------------------------------
 
 calculate_connectivity <- function(data, id) {
-  data %>%
-    filter(tree_id != eval(parse(text = id))) %>%
+  
+  data[data$tree_id != eval(id),] %>%
     select(id, crown_area_m2) %>%
-    mutate(x = exp(-1 / 85 * eval(parse(text = id))) * crown_area_m2) %>%
+    mutate(x = exp(-1 / 120 * eval(parse(text = id))) * crown_area_m2^(0.5)) %>%
     summarise(
       tree_id = paste(id),
       connectivity = sum(x)
