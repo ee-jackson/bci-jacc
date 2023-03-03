@@ -1,7 +1,7 @@
 Explore capsule sizes
 ================
 eleanorjackson
-24 February, 2023
+03 March, 2023
 
 When collecting data in the field we didn’t classify capsules as
 immature or mature, but instead recorded their size and whether they
@@ -22,40 +22,56 @@ read.csv(here::here("data", "raw", "jacaranda_pods.csv"),
   filter(tree != "JACC_130") %>%
   mutate(fragment = case_when(str_detect(comments, "fragment") ~ TRUE,
                               TRUE ~ FALSE)) %>%  
-  filter(fragment == FALSE) %>% 
+  mutate(pod_half_whole = recode(pod_half_whole, "half" = 0.5,
+                                 "whole" = 1)) %>%
   mutate(pod_size_mm = coalesce(pod_size_string_mm, pod_size_mm)) %>%
-  mutate(pod_size_mm = as.numeric(pod_size_mm)) -> pod_data
+  mutate(pod_size_mm = as.numeric(pod_size_mm)) %>% 
+  filter(fragment == FALSE) %>% 
+  mutate(pod_healthy = case_when(
+    str_detect(morph, "^symmetrical_locules") ~ TRUE,
+    is.na(morph) ~ NA,
+    TRUE ~ FALSE
+  )) -> pod_data
+
+pod_data %>% 
+  filter(pod_half_whole == 1) %>% 
+  bind_rows() -> pod_halves
+
+healthy_halves <- filter(pod_halves, pod_healthy == TRUE)
 ```
 
 ``` r
-pod_data %>%
+filter(pod_data, pod_healthy == TRUE) %>%
   drop_na(pod_size_mm) %>% 
   ggplot(aes(x = pod_size_mm, fill = pod_open_closed)) +
-  geom_density(alpha = 0.6) +
+  geom_density(alpha = 0.5) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9")) +
   xlab("Capsule length (mm)") +
   theme(legend.title = element_blank()) +
-  geom_vline(xintercept = 40, linetype = 2)
+  geom_vline(xintercept = 55, linetype = 2) 
 ```
 
 ![](figures/2023-02-24_explore-capsule-lengths/open-closed-size-1.png)<!-- -->
 
-That’s a really nice bimodal distribution. 40 mm looks like a good cut
-off for immature fruits. There’s a small number of pods that are open
-but are comparatively small (the first blue hump). These are probably
-immature capsules that opened on the forest floor.
+There’s a small number of pods that are open but are comparatively small
+(the first blue hump). These are probably immature capsules that opened
+on the forest floor.
+
+I think we can take the median value between the two peaks (55mm) to
+separate the pods into mature and immature.
 
 Let’s take a quick look at capsule sizes between the different
 categories: mature, immature and predated.
 
 ``` r
-pod_data %>%
+pod_halves %>%
   mutate(pod_category = case_when(
-    pod_size_mm < 40 & str_detect(morph, "^symmetrical_locules") ~ "immature",
-    pod_size_mm >= 40 & str_detect(morph, "^symmetrical_locules") ~ "mature",
+    pod_size_mm < 55 & str_detect(morph, "^symmetrical_locules") ~ "immature",
     morph == "asymmetrical_locules" |
       morph == "single_locule" |
       morph == "small_knobbly" ~ "predated",
-    TRUE ~ NA
+    is.na(morph) ~ NA,
+    TRUE ~ "mature"
   )) %>% 
   filter(!is.na(pod_category)) -> pod_groups
 
@@ -63,15 +79,11 @@ pod_groups %>%
   ggplot(aes(x = pod_size_mm, fill = pod_category)) +
   geom_density(alpha = 0.6) +
   xlab("Capsule length (mm)") +
-  theme(legend.title = element_blank())
+  theme(legend.title = element_blank()) +
+  scale_fill_manual(values = c("#E69F00", "#56B4E9", "#009E73")) 
 ```
 
 ![](figures/2023-02-24_explore-capsule-lengths/grouped-pod-size-1.png)<!-- -->
-
-The predated capsules also have a bimodal distribution - this’ll be the
-two different morphotypes that we found: “small-knobbly” ones that
-looked like they’d been predated when they were still young, and
-“asymmetric” ones which were bigger but had one shrunken locule.
 
 Let’s pull some numbers out for the manuscript.
 
@@ -84,6 +96,6 @@ pod_groups %>%
     ## # A tibble: 3 × 3
     ##   pod_category median  mean
     ##   <chr>         <dbl> <dbl>
-    ## 1 immature       25.9  25.8
-    ## 2 mature         79.7  80.1
-    ## 3 predated       28.1  35.2
+    ## 1 immature       31.8  32.6
+    ## 2 mature         83.2  84.7
+    ## 3 predated       25.9  28.5
