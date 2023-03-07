@@ -26,7 +26,7 @@ read.csv(here::here("data", "raw", "jacaranda_pods.csv"),
 # we found no capsules at JACC_130 but there is still a data entry with dbh
 
 pod_data %>%
-  select(tree, date, dbh_mm,crown_radius_m) %>%
+  select(tree, date, dbh_mm, crown_radius_m) %>%
   rename(tree_id = tree) %>%
   distinct() -> tree_data
 # add crown area column
@@ -37,7 +37,7 @@ pod_data %>%
 pod_data %>%
   filter(fragment == FALSE) %>% 
   mutate(pod_immature = case_when(
-    pod_size_mm < 40 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
+    pod_size_mm < 55 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
     is.na(pod_size_mm) ~ NA,
     is.na(morph) ~ NA,
     TRUE ~ FALSE
@@ -52,7 +52,7 @@ pod_data %>%
 pod_data %>%
   filter(fragment == FALSE) %>% 
   mutate(pod_mature = case_when(
-    pod_size_mm >= 40 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
+    pod_size_mm >= 55 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
     is.na(pod_size_mm) ~ NA,
     is.na(morph) ~ NA,
     TRUE ~ FALSE

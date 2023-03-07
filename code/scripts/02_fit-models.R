@@ -29,10 +29,10 @@ readRDS(here::here("data", "clean", "connect_pod_data.rds")) %>%
          n_total_sc = scale(n_total)) 
   ) -> model_data
 
-
-# Bayesian model ----------------------------------------------------------
-
 bprior <- prior(normal(0, 1), class = b)
+
+
+# Predation model ---------------------------------------------------------
 
 model_predation <-
   brm(data = model_data,
@@ -63,6 +63,7 @@ bayestestR::describe_posterior(model_predation,
 
 
 # Fruit set model ---------------------------------------------------------
+
 model_fruit_set <-
   brm(data = model_data,
       family = gaussian,
@@ -106,6 +107,7 @@ bayestestR::describe_posterior(model_realised_fecundity,
   as.data.frame() %>% 
   write_csv(here::here("output", "results", "realised_fecundity_model_describe_posterior.csv"))
 
+
 # Fruit length model ------------------------------------------------------
 
 read.csv(here::here("data", "raw", "jacaranda_pods.csv"),
@@ -119,7 +121,7 @@ read.csv(here::here("data", "raw", "jacaranda_pods.csv"),
   mutate(pod_size_mm = as.numeric(pod_size_mm)) %>% 
   filter(fragment == FALSE) %>% 
   mutate(pod_mature = case_when(
-    pod_size_mm >= 40 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
+    pod_size_mm >= 55 & str_detect(morph, "^symmetrical_locules") ~ TRUE,
     is.na(pod_size_mm) ~ NA,
     is.na(morph) ~ NA,
     TRUE ~ FALSE
