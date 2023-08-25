@@ -36,7 +36,7 @@ bprior <- prior(normal(0, 1), class = b)
 
 model_predation <-
   brm(data = model_data,
-      family = binomial(link = logit),
+      family = zero_inflated_binomial(link = logit),
       n_predated | trials(n_total) ~
         connectivity_sc + individ_fecundity_sc +
         connectivity_sc:individ_fecundity_sc,
@@ -66,9 +66,10 @@ bayestestR::describe_posterior(model_predation,
 
 model_fruit_set <-
   brm(data = model_data,
-      family = gaussian,
-      n_total_sc ~
-        connectivity_sc + dbh_mm_sc,
+      family = negbinomial,
+      n_total ~
+        connectivity_sc + dbh_mm_sc +
+        connectivity_sc:dbh_mm_sc,
       prior = bprior,
       iter = 12500,
       warmup = 500,
@@ -89,9 +90,10 @@ bayestestR::describe_posterior(model_fruit_set,
 
 model_realised_fecundity <-
   brm(data = model_data,
-      family = gaussian,
-      n_mature_sc ~
-        connectivity_sc + dbh_mm_sc,
+      family = negbinomial,
+      n_mature ~
+        connectivity_sc + dbh_mm_sc +
+        connectivity_sc:dbh_mm_sc,
       prior = bprior,
       iter = 12500,
       warmup = 500,
@@ -138,9 +140,10 @@ mature_halves %>%
 
 model_length <-
   brm(data = length_data,
-      family = gaussian,
-      pod_size_sc ~
-        connectivity_sc + individ_fecundity_sc + (1|tree),
+      family = lognormal,
+      pod_size_mm ~
+        connectivity_sc + individ_fecundity_sc + 
+        connectivity_sc:individ_fecundity_sc + (1|tree),
       prior = bprior,
       iter = 12500,
       warmup = 500,
