@@ -13,9 +13,8 @@ library("brms")
 library("patchwork")
 library("stringr")
 library("bayesplot")
-
-
-# Posterior predictive checks ---------------------------------------------
+library("bayestestR")
+library("gt")
 
 file_names <- as.list(dir(path = here::here("output", "models"),
                           pattern = "*.rds", full.names = TRUE))
@@ -24,49 +23,124 @@ model_list <- lapply(file_names, readRDS)
 
 names(model_list) <- lapply(file_names, basename)
 
-plot_pp_check <- function(model) {
-  pp_check(model, ndraws = 50) +  
-    ggtitle(str_wrap(formula(model), 60)) +
-    theme_classic(base_size = 5)
+# Posterior predictive checks ---------------------------------------------
+
+plot_pp_check <- function(model, xlab) {
+  pp_check(model, ndraws = 500) +
+    labs(x = xlab, y = "Density") +
+    theme_classic(base_size = 20)
 }
-
-plot_list <- lapply(model_list, plot_pp_check)
-
-wrap_plots(plot_list)
-
-ggsave(here::here("output","figures","pp_checks.png"),
-       width = 1476, height = 1476, units = "px")
 
 
 # MCMC diagnostics --------------------------------------------------------
 
 plot_mcmc_check <- function(model) {
   mcmc_trace(model, regex_pars = "b_",
-             n_warmup = 500) +  
-    ggtitle(str_wrap(formula(model), 70)) +
-    theme_classic(base_size = 5)
+             iter1 = 500,
+             facet_args = list(ncol = 1)) +
+    theme_classic(base_size = 15)
 }
 
-mcmc_plot_list <- lapply(model_list, plot_mcmc_check)
+# Get posterior param estimates -------------------------------------------
 
-wrap_plots(mcmc_plot_list, ncol = 1)
-
-ggsave(here::here("output","figures","mcmc_checks.png"),
-       width = 1476, height = 2000, units = "px")
-
-
-# Check influence of prior information ------------------------------------
-
-prior <- distribution_normal(n = 50, mean = 0, sd = 1)
-plot(density(x))
-
-ggplot() +
-  geom_density(data = posteriors, aes(x = b_individ_fecundity_sc), fill = "orange") +
-  geom_density(aes(x = prior))
+get_table <- function(model) {
+  bayestestR::describe_posterior(model,
+                                 ci = 0.95,
+                                 ci_method = "HDI",
+                                 centrality = "median",
+                                 test = FALSE) %>%
+    mutate(across(!Rhat & !Parameter, round, 2)) %>%
+    gt()
+}
 
 
-intercept_prior <- distribution_student_t(n = 50, df = 3, ncp = 0)
+# fruit set model ---------------------------------------------------------
 
-ggplot() +
-  geom_density(data = posteriors, aes(x = b_Intercept), fill = "orange") +
-  geom_density(aes(x = intercept_prior))
+fs_t <- get_table(model_list$fruit_set_model_fit.rds)
+gtsave(fs_t, here::here("output", "results", "fruit_set_model_out.png"))
+fs_t_png <- png::readPNG(here::here("output", "results", "fruit_set_model_out.png"),
+                         native = TRUE)
+
+fs_pp <- plot_pp_check(model_list$fruit_set_model_fit.rds, 
+                       xlab = "Total fruit count")
+fs_mcmc <- plot_mcmc_check(model_list$fruit_set_model_fit.rds)
+
+((fs_pp / fs_t_png) | fs_mcmc) +
+  plot_annotation(tag_levels = 'a') &
+  theme(plot.tag = element_text(size = 20))
+
+png(
+  here::here("output", "figures", "fruit_set_si.png"),
+  width = 1476,
+  height = 1000,
+  units = "px"
+)
+
+
+# fruit size model --------------------------------------------------------
+
+l_t <- get_table(model_list$length_model_fit.rds)
+gtsave(l_t, here::here("output", "results", "fruit_length_model_out.png"))
+l_t_png <- png::readPNG(here::here("output", "results", "fruit_length_model_out.png"),
+                         native = TRUE)
+
+l_pp <- plot_pp_check(model_list$length_model_fit.rds, 
+                      xlab = "Fruit size (mm)")
+l_mcmc <- plot_mcmc_check(model_list$length_model_fit.rds)
+
+((l_pp / l_t_png) | l_mcmc) +
+  plot_annotation(tag_levels = 'a') &
+  theme(plot.tag = element_text(size = 20))
+
+png(
+  here::here("output", "figures", "fruit_length_si.png"),
+  width = 1476,
+  height = 1000,
+  units = "px"
+)
+
+
+# predation model ---------------------------------------------------------
+
+pred_t <- get_table(model_list$predation_model_fit.rds)
+gtsave(pred_t, here::here("output", "results", "fruit_pred_model_out.png"))
+pred_t_png <- png::readPNG(here::here("output", "results", "fruit_pred_model_out.png"),
+                        native = TRUE)
+
+pred_pp <- plot_pp_check(model_list$predation_model_fit.rds, 
+                         xlab = "Predated fruit count")
+pred_mcmc <- plot_mcmc_check(model_list$predation_model_fit.rds)
+
+((pred_pp / pred_t_png) | pred_mcmc) +
+  plot_annotation(tag_levels = 'a') &
+  theme(plot.tag = element_text(size = 20))
+
+png(
+  here::here("output", "figures", "fruit_pred_si.png"),
+  width = 1476,
+  height = 1000,
+  units = "px"
+)
+
+
+# mature fruit model ------------------------------------------------------
+
+mat_t <- get_table(model_list$realised_fecundity_model_fit.rds)
+gtsave(mat_t, here::here("output", "results", "fruit_mature_model_out.png"))
+mat_t_png <- png::readPNG(here::here("output", "results", "fruit_mature_model_out.png"),
+                           native = TRUE)
+
+mat_pp <- plot_pp_check(model_list$realised_fecundity_model_fit.rds, 
+                        xlab = "Mature fruit count")
+mat_mcmc <- plot_mcmc_check(model_list$realised_fecundity_model_fit.rds)
+
+((mat_pp / mat_t_png) | mat_mcmc) +
+  plot_annotation(tag_levels = 'a') &
+  theme(plot.tag = element_text(size = 20))
+
+png(
+  here::here("output", "figures", "fruit_mature_si.png"),
+  width = 1476,
+  height = 1000,
+  units = "px"
+)
