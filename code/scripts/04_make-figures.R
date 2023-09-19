@@ -24,7 +24,9 @@ full_data %>%
   mutate(across(contains("n_"), ~as.integer(.)) %>% 
            mutate(connectivity_sc = scale(connectivity),
                   individ_fecundity_sc = scale(individ_fecundity),
-                  dbh_mm_sc = scale(dbh_mm)) 
+                  dbh_mm_sc = scale(dbh_mm),
+                  n_mature_sc = scale(n_mature),
+                  n_total_sc = scale(n_total)) 
   ) -> model_data
 
 readRDS(here::here("data", "clean", "all_tree_lon_lat.rds")) %>%
@@ -38,38 +40,40 @@ full_data %>%
   drop_na() %>%
   mutate(`Proportion of fruits predated` = n_predated / n_total) %>%
   rename(
-    `Estimated fruit set` = individ_fecundity,
-    `Count of mature fruits` = n_mature
+    `Individual fecundity` = individ_fecundity,
+    `Realised fecundity` = realised_fecundity
   ) %>%
-  select(`Estimated fruit set`,
+  select(`Individual fecundity`,
          `Proportion of fruits predated`,
-         `Count of mature fruits`) -> plotting_data
+         `Realised fecundity`) -> plotting_data
 
 emptycol <- function(x) " "
+Min <- function(x) sprintf("%.2f", min(x, na.rm = TRUE))
+Max <- function(x) sprintf("%.2f", max(x, na.rm = TRUE))
 
 tmp_list <- as.list(plotting_data)
 
 datasummary(
-  `Estimated fruit set` +
+  `Individual fecundity` +
     `Proportion of fruits predated` +
-    `Count of mature fruits` ~ Mean + SD + 
+    `Realised fecundity` ~ Min + Max + Mean + SD +
     Heading("Boxplot") * emptycol + 
     Heading("Histogram") * emptycol, 
   data = plotting_data) %>%
   kable_classic() %>%
   column_spec(column = 1, width = "8em") %>%
-  column_spec(column = 4, 
+  column_spec(column = 6, 
               image = spec_boxplot(tmp_list,
-                                   width = 800, col = "#6baed6",  medlwd = 2, 
-                                   medcol = "red", height = 400, add_label = TRUE, 
+                                   width = 600, col = "#6baed6",  medlwd = 2, 
+                                   medcol = "red", height = 300, 
                                    same_lim = FALSE)) %>%
-  column_spec(column = 5, 
+  column_spec(column = 7, 
               image = spec_hist(tmp_list,
-                                width = 800, col = "#6baed6", border = "#6baed6",
+                                width = 600, col = "#6baed6", border = "#6baed6",
                                 height = 300, same_lim = FALSE)) %>%
-  kable_styling(font_size = 25, html_font = "arial") %>% 
+  kable_styling(font_size = 30, html_font = "arial") %>% 
   kableExtra::as_image(file = here::here("output", "figures", "summary_stats.png"), 
-                       width = 10) 
+                       width = 4.92) 
 
 # for kableExtra::as_image units are in inches
 

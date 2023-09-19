@@ -67,9 +67,8 @@ bayestestR::describe_posterior(model_predation,
 model_fruit_set <-
   brm(data = model_data,
       family = negbinomial,
-      n_total ~
-        connectivity_sc + dbh_mm_sc +
-        connectivity_sc:dbh_mm_sc,
+      individ_fecundity ~
+        connectivity_sc,
       prior = bprior,
       iter = 12500,
       warmup = 500,
@@ -91,9 +90,8 @@ bayestestR::describe_posterior(model_fruit_set,
 model_realised_fecundity <-
   brm(data = model_data,
       family = negbinomial,
-      n_mature ~
-        connectivity_sc + dbh_mm_sc +
-        connectivity_sc:dbh_mm_sc,
+      realised_fecundity ~
+        connectivity_sc,
       prior = bprior,
       iter = 12500,
       warmup = 500,

@@ -85,20 +85,17 @@ model_data %>%
   scale_x_continuous(expand = c(0.01, 0.5)) +
   scale_y_continuous(expand = c(0.005, 0.005)) +
   theme(legend.position = "none") +
-  xlab("Estimated fruit set") +
-  ylab("") -> p2
+  xlab("Individual fecundity") +
+  ylab("Proportion predated") -> p2
 
 model_data %>%
-  modelr::data_grid(connectivity_sc = modelr::seq_range(connectivity_sc, n = 51),
-                    dbh_mm_sc = rep(mean(model_data$dbh_mm_sc), 51)) %>% 
+  modelr::data_grid(connectivity_sc = modelr::seq_range(connectivity_sc, n = 51)) %>% 
   add_epred_draws(model_list$fruit_set_model_fit.rds, ndraws = 500) %>%
-  mutate(dbh_mm_us = dbh_mm_sc * 
-           attr(model_data$dbh_mm_sc, 'scaled:scale') + attr(model_data$dbh_mm_sc, 'scaled:center'),
-         connectivity_us = connectivity_sc * 
+  mutate(connectivity_us = connectivity_sc * 
            attr(model_data$connectivity_sc, 'scaled:scale') + attr(model_data$connectivity_sc, 'scaled:center')) %>% 
   ggplot() +
   geom_point(data = model_data, aes(x = connectivity, y = n_total), 
-             inherit.aes = FALSE, alpha = 0.7, shape = 16, size = 5) +
+             inherit.aes = FALSE, alpha = 0.6, shape = 16, size = 5) +
   stat_lineribbon(aes(x = connectivity_us, y = .epred), 
                   colour = "darkblue", alpha = 0.4) +
   scale_fill_brewer(na.translate = FALSE, palette = "Blues") +
@@ -107,40 +104,16 @@ model_data %>%
   scale_y_continuous(expand = c(0.005, 5)) +
   theme(legend.position = "none") +
   xlab("Connectivity") +
-  ylab("Total fruit count") -> p3
+  ylab("Individual fecundity") -> p3
 
 model_data %>%
-  modelr::data_grid(dbh_mm_sc = modelr::seq_range(dbh_mm_sc, n = 51),
-                    connectivity_sc = rep(mean(model_data$connectivity_sc), 51)) %>% 
-  add_epred_draws(model_list$fruit_set_model_fit.rds, ndraws = 500) %>%
-  mutate(dbh_mm_us = dbh_mm_sc * 
-           attr(model_data$dbh_mm_sc, 'scaled:scale') + attr(model_data$dbh_mm_sc, 'scaled:center'),
-         connectivity_us = connectivity_sc * 
-           attr(model_data$connectivity_sc, 'scaled:scale') + attr(model_data$connectivity_sc, 'scaled:center')) %>% 
-  ggplot() +
-  geom_point(data = model_data, aes(x = dbh_mm, y = n_total), 
-             inherit.aes = FALSE, alpha = 0.7, shape = 16, size = 5) +
-  stat_lineribbon(aes(x = dbh_mm_us, y = .epred), 
-                  colour = "darkblue", alpha = 0.4) +
-  scale_fill_brewer(na.translate = FALSE, palette = "Blues") +
-  theme_classic(base_size = 35) +
-  scale_x_continuous(expand = c(0.01, 0.01)) +
-  scale_y_continuous(expand = c(0.005, 5)) +
-  theme(legend.position = "none") +
-  xlab("DBH (mm)") +
-  ylab("") -> p4
-
-model_data %>%
-  modelr::data_grid(connectivity_sc = modelr::seq_range(connectivity_sc, n = 51),
-                    dbh_mm_sc = rep(mean(model_data$dbh_mm_sc), 51)) %>% 
+  modelr::data_grid(connectivity_sc = modelr::seq_range(connectivity_sc, n = 51)) %>% 
   add_epred_draws(model_list$realised_fecundity_model_fit.rds, ndraws = 500) %>%
-  mutate(dbh_mm_us = dbh_mm_sc * 
-           attr(model_data$dbh_mm_sc, 'scaled:scale') + attr(model_data$dbh_mm_sc, 'scaled:center'),
-         connectivity_us = connectivity_sc * 
+  mutate(connectivity_us = connectivity_sc * 
            attr(model_data$connectivity_sc, 'scaled:scale') + attr(model_data$connectivity_sc, 'scaled:center')) %>% 
   ggplot() +
   geom_point(data = model_data, aes(x = connectivity, y = n_mature), 
-             inherit.aes = FALSE, alpha = 0.7, shape = 16, size = 5) +
+             inherit.aes = FALSE, alpha = 0.6, shape = 16, size = 5) +
   stat_lineribbon(aes(x = connectivity_us, y = .epred), 
                   colour = "darkblue", alpha = 0.4) +
   scale_fill_brewer(na.translate = FALSE, palette = "Blues") +
@@ -149,28 +122,8 @@ model_data %>%
   scale_y_continuous(expand = c(0.005, 5)) +
   theme(legend.position = "none") +
   xlab("Connectivity") +
-  ylab("Mature fruit count") -> p5
+  ylab("Realised fecundity") -> p5
 
-model_data %>%
-  modelr::data_grid(dbh_mm_sc = modelr::seq_range(dbh_mm_sc, n = 51),
-                    connectivity_sc = rep(mean(model_data$connectivity_sc), 51)) %>% 
-  add_epred_draws(model_list$realised_fecundity_model_fit.rds, ndraws = 500) %>%
-  mutate(dbh_mm_us = dbh_mm_sc * 
-           attr(model_data$dbh_mm_sc, 'scaled:scale') + attr(model_data$dbh_mm_sc, 'scaled:center'),
-         connectivity_us = connectivity_sc * 
-           attr(model_data$connectivity_sc, 'scaled:scale') + attr(model_data$connectivity_sc, 'scaled:center')) %>% 
-  ggplot() +
-  geom_point(data = model_data, aes(x = dbh_mm, y = n_mature), 
-             inherit.aes = FALSE, alpha = 0.7, shape = 16, size = 5) +
-  stat_lineribbon(aes(x = dbh_mm_us, y = .epred), 
-                  colour = "darkblue", alpha = 0.4) +
-  scale_fill_brewer(na.translate = FALSE, palette = "Blues") +
-  theme_classic(base_size = 35) +
-  scale_x_continuous(expand = c(0.01, 0.01)) +
-  scale_y_continuous(expand = c(0.005, 5)) +
-  theme(legend.position = "none") +
-  xlab("DBH (mm)") +
-  ylab("") -> p6
 
 length_data %>%
   modelr::data_grid(connectivity_sc = modelr::seq_range(connectivity_sc, n = 51),
@@ -217,16 +170,16 @@ length_data %>%
   scale_x_continuous(expand = c(0.01, 0.01)) +
   scale_y_continuous(expand = c(0.005, 0.005)) +
   theme(legend.position = "none") +
-  xlab("Estimated fruit set") +
-  ylab("") -> p8
+  xlab("Individual fecundity") +
+  ylab("Fruit size (mm)") -> p8
 
 png(
-  here::here("output", "figures", "all_models_conditional.png"),
+  here::here("output", "figures", "all_models_new.png"),
   width = 1476,
   height = 1800,
   units = "px",
   type = "cairo"
 )
-( (p1 + p2) / (p3 + p4) / (p5 + p6) + (p7 + p8) ) +
+( (p2 + p1 ) / (p3 + p5) / (p8 + p7) ) +
   plot_annotation(tag_levels = "a")
 dev.off()

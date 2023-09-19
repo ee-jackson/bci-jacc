@@ -105,9 +105,28 @@ pod_data %>%
   select(tree, individ_fecundity) -> fruit_set
 
 
+# estimate mature fruits --------------------------------------------------
+
+pod_data %>%
+  filter(fragment == FALSE) %>% 
+  select(tree, crown_radius_m) %>%
+  distinct() %>%
+  mutate(crown_area = pi * crown_radius_m^2) %>%
+  mutate(n_quadrats = case_when(
+    str_detect(crown_radius_m, "\\d{0,2}(\\.0{1})") ~ floor(crown_radius_m),
+    TRUE ~ ceiling(crown_radius_m)
+  )) %>%
+  mutate(n_quadrats = n_quadrats * 4) %>%
+  left_join(mature_pods) %>%
+  rowwise() %>%
+  mutate(mean_mature_fruits = n_mature/n_quadrats) %>%
+  mutate(realised_fecundity = round(mean_mature_fruits * crown_area)) %>%
+  select(tree, n_mature, realised_fecundity) -> mature_est
+
+
 # combine groups ----------------------------------------------------------
 
-full_join(immature_pods, mature_pods, by = "tree") %>%
+full_join(immature_pods, mature_est, by = "tree") %>%
   full_join(predated_pods, by = "tree") %>%
   mutate(across(where(is.numeric), ~replace_na(.x, 0))) %>%
   full_join(total_pods, by = "tree") %>%
