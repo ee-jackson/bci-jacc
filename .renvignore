@@ -1,2 +1,6 @@
-*
-!/code/scripts
+data/
+docs/
+output/
+photos/
+/code/exploration
+/code/graveyard
