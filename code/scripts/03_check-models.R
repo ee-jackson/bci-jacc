@@ -57,12 +57,12 @@ get_table <- function(model) {
 # fruit set model ---------------------------------------------------------
 
 fs_t <- get_table(model_list$fruit_set_model_fit.rds)
-gtsave(fs_t, here::here("output", "results", "fruit_set_model_out.png"))
-fs_t_png <- png::readPNG(here::here("output", "results", "fruit_set_model_out.png"),
+gtsave(fs_t, here::here("output", "figures", "fruit_set_model_out.png"))
+fs_t_png <- png::readPNG(here::here("output", "figures", "fruit_set_model_out.png"),
                          native = TRUE)
 
 fs_pp <- plot_pp_check(model_list$fruit_set_model_fit.rds, 
-                       xlab = "Total fruit count")
+                       xlab = "Individual fecundity")
 fs_mcmc <- plot_mcmc_check(model_list$fruit_set_model_fit.rds)
 
 ((fs_pp / fs_t_png) | fs_mcmc) +
@@ -80,8 +80,8 @@ png(
 # fruit size model --------------------------------------------------------
 
 l_t <- get_table(model_list$length_model_fit.rds)
-gtsave(l_t, here::here("output", "results", "fruit_length_model_out.png"))
-l_t_png <- png::readPNG(here::here("output", "results", "fruit_length_model_out.png"),
+gtsave(l_t, here::here("output", "figures", "fruit_length_model_out.png"))
+l_t_png <- png::readPNG(here::here("output", "figures", "fruit_length_model_out.png"),
                          native = TRUE)
 
 l_pp <- plot_pp_check(model_list$length_model_fit.rds, 
@@ -103,8 +103,8 @@ png(
 # predation model ---------------------------------------------------------
 
 pred_t <- get_table(model_list$predation_model_fit.rds)
-gtsave(pred_t, here::here("output", "results", "fruit_pred_model_out.png"))
-pred_t_png <- png::readPNG(here::here("output", "results", "fruit_pred_model_out.png"),
+gtsave(pred_t, here::here("output", "figures", "fruit_pred_model_out.png"))
+pred_t_png <- png::readPNG(here::here("output", "figures", "fruit_pred_model_out.png"),
                         native = TRUE)
 
 pred_pp <- plot_pp_check(model_list$predation_model_fit.rds, 
@@ -126,12 +126,12 @@ png(
 # mature fruit model ------------------------------------------------------
 
 mat_t <- get_table(model_list$realised_fecundity_model_fit.rds)
-gtsave(mat_t, here::here("output", "results", "fruit_mature_model_out.png"))
-mat_t_png <- png::readPNG(here::here("output", "results", "fruit_mature_model_out.png"),
+gtsave(mat_t, here::here("output", "figures", "fruit_mature_model_out.png"))
+mat_t_png <- png::readPNG(here::here("output", "figures", "fruit_mature_model_out.png"),
                            native = TRUE)
 
 mat_pp <- plot_pp_check(model_list$realised_fecundity_model_fit.rds, 
-                        xlab = "Mature fruit count")
+                        xlab = "Realised fecundity")
 mat_mcmc <- plot_mcmc_check(model_list$realised_fecundity_model_fit.rds)
 
 ((mat_pp / mat_t_png) | mat_mcmc) +
