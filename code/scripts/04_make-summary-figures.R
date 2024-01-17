@@ -53,6 +53,50 @@ Max <- function(x) sprintf("%.2f", max(x, na.rm = TRUE))
 
 tmp_list <- as.list(plotting_data)
 
+# make inset plots
+png(here::here("output", "plots","hist_indi_fec.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+hist(plotting_data$`Individual fecundity`, 
+     col = "#6baed6", border = NA, main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+png(here::here("output", "plots","hist_prop_pred.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+hist(plotting_data$`Proportion of fruits predated`, 
+     col = "#6baed6", border = NA, main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+png(here::here("output", "plots","hist_real_fec.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+hist(plotting_data$`Realised fecundity`, 
+     col = "#6baed6", border = NA, main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+png(here::here("output", "plots","box_indi_fec.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+boxplot(plotting_data$`Individual fecundity`, frame = FALSE,
+        horizontal = TRUE, col = "#6baed6", main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+png(here::here("output", "plots","box_prop_pred.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+boxplot(plotting_data$`Proportion of fruits predated`, frame = FALSE,
+        horizontal = TRUE, col = "#6baed6", main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+png(here::here("output", "plots","box_real_fec.png"),
+    width = 300, height = 200, units = "px", bg = "transparent")
+par(mar = c(2, 2, 1, 2))
+boxplot(plotting_data$`Realised fecundity`, frame = FALSE,
+        horizontal = TRUE, col = "#6baed6", main = NA, xlab = NA, ylab = NA)
+dev.off()
+
+# make table
 datasummary(
   `Individual fecundity` +
     `Proportion of fruits predated` +
@@ -61,17 +105,20 @@ datasummary(
     Heading("Histogram") * emptycol, 
   data = plotting_data) %>%
   kable_classic() %>%
-  column_spec(column = 1, width = "8em") %>%
-  column_spec(column = 6, 
-              image = spec_boxplot(tmp_list,
-                                   width = 600, col = "#6baed6",  medlwd = 2, 
-                                   medcol = "red", height = 300, 
-                                   same_lim = FALSE)) %>%
-  column_spec(column = 7, 
-              image = spec_hist(tmp_list,
-                                width = 600, col = "#6baed6", border = "#6baed6",
-                                height = 300, same_lim = FALSE)) %>%
-  kable_styling(font_size = 30, html_font = "arial") %>% 
+  column_spec(column = 1, width_min = "5em") %>%
+  kableExtra::column_spec(column = 6, image = c(
+    here::here("output", "plots","box_indi_fec.png"),
+    here::here("output", "plots","box_prop_pred.png"),
+    here::here("output", "plots","box_real_fec.png"),
+    here::here("output", "plots","box_real_fec.png")
+  )) %>% 
+  kableExtra::column_spec(column = 7, image = c(
+    here::here("output", "plots","hist_indi_fec.png"),
+    here::here("output", "plots","hist_prop_pred.png"),
+    here::here("output", "plots","hist_real_fec.png"),
+    here::here("output", "plots","hist_real_fec.png")
+               )) %>% 
+  kable_styling(font_size = 30, html_font = "arial")%>% 
   kableExtra::as_image(file = here::here("output", "figures", "summary_stats.png"), 
                        width = 4.92) 
 
